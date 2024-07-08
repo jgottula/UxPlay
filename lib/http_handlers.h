@@ -253,7 +253,7 @@ http_handler_playback_info(raop_conn_t *conn, http_request_t *request, http_resp
                            char **response_data, int *response_datalen)
 {
     logger_log(conn->raop->logger, LOGGER_DEBUG, "http_handler_playback_info");
-    const char *session_id = http_request_get_header(request, "X-Apple-Session-ID");
+    //const char *session_id = http_request_get_header(request, "X-Apple-Session-ID");
 
     playback_info_t playback_info;
     playback_info.stallcount = 0;
@@ -359,12 +359,11 @@ http_handler_action(raop_conn_t *conn, http_request_t *request, http_response_t 
 
     bool data_is_plist = false;
     plist_t req_root_node = NULL;
-    char *fcup_response_data = NULL;
-    char *fcup_response_url = NULL;
     uint64_t uint_val;
     void *media_data_store = NULL;
     int request_id = 0;
     int fcup_response_statuscode = 0;
+    bool logger_debug = (logger_get_level(conn->raop->logger) >= LOGGER_DEBUG);
     
     media_data_store = get_media_data_store(conn->raop);
     if (!media_data_store) {
@@ -427,75 +426,91 @@ http_handler_action(raop_conn_t *conn, http_request_t *request, http_response_t 
     plist_t req_params_node = NULL;
     switch (action_type) {
     case 1:
-      req_params_node = plist_dict_get_item(req_root_node, "params");
-      if (PLIST_IS_DICT (req_params_node)) {
-	goto handle_fcup;
-      }
-      goto post_action_error;
+        goto unhandledURLResponse;
     case 2:
-      logger_log(conn->raop->logger, LOGGER_INFO, "unhandled action type playlistInsert (add new playback)");
-      goto finish;
+        logger_log(conn->raop->logger, LOGGER_INFO, "unhandled action type playlistInsert (add new playback)");
+        goto finish;
     case 3:
-      logger_log(conn->raop->logger, LOGGER_INFO, "unhandled action type playlistRemove (stop playback)");
-      goto finish;
+        logger_log(conn->raop->logger, LOGGER_INFO, "unhandled action type playlistRemove (stop playback)");
+        goto finish;
     default:
-      logger_log(conn->raop->logger, LOGGER_INFO, "unknown action type (unhandled)"); 
-      goto finish;
+        logger_log(conn->raop->logger, LOGGER_INFO, "unknown action type (unhandled)"); 
+        goto finish;
     }
 
- handle_fcup:
+ unhandledURLResponse:;
 
+    req_params_node = plist_dict_get_item(req_root_node, "params");
+    if (!PLIST_IS_DICT (req_params_node)) {
+        goto post_action_error;
+    }
+    
     /* handling type "unhandledURLResponse" (case 1)*/
     uint_val = 0;
     int fcup_response_datalen = 0;
 
-    plist_t plist_fcup_response_statuscode_node = plist_dict_get_item(req_params_node,
+    if  (logger_debug) {
+        plist_t plist_fcup_response_statuscode_node = plist_dict_get_item(req_params_node,
                                                                       "FCUP_Response_StatusCode");
-    if (plist_fcup_response_statuscode_node) {
-        plist_get_uint_val(plist_fcup_response_statuscode_node, &uint_val);
-        fcup_response_statuscode = (int) uint_val;
-        uint_val = 0;
-        logger_log(conn->raop->logger, LOGGER_INFO, "FCUP_Response_StatusCode = %d",
-                   fcup_response_statuscode);
-    }
+        if (plist_fcup_response_statuscode_node) {
+            plist_get_uint_val(plist_fcup_response_statuscode_node, &uint_val);
+            fcup_response_statuscode = (int) uint_val;
+            uint_val = 0;
+            logger_log(conn->raop->logger, LOGGER_DEBUG, "FCUP_Response_StatusCode = %d",
+                       fcup_response_statuscode);
+        }
 
-    plist_t plist_fcup_response_requestid_node = plist_dict_get_item(req_params_node,
+        plist_t plist_fcup_response_requestid_node = plist_dict_get_item(req_params_node,
                                                                      "FCUP_Response_RequestID");
-    if (plist_fcup_response_requestid_node) {
-        plist_get_uint_val(plist_fcup_response_requestid_node, &uint_val);
-        request_id = (int) uint_val;
-        uint_val = 0;
-        logger_log(conn->raop->logger, LOGGER_DEBUG, "FCUP_Response_RequestID =  %d", request_id);
+        if (plist_fcup_response_requestid_node) {
+            plist_get_uint_val(plist_fcup_response_requestid_node, &uint_val);
+            request_id = (int) uint_val;
+            uint_val = 0;
+            logger_log(conn->raop->logger, LOGGER_DEBUG, "FCUP_Response_RequestID =  %d", request_id);
+        }
     }
 
     plist_t plist_fcup_response_url_node = plist_dict_get_item(req_params_node, "FCUP_Response_URL");
-    if (plist_fcup_response_url_node) {
-        plist_get_string_val(plist_fcup_response_url_node, &fcup_response_url);
-        if (!fcup_response_url) {
-            goto post_action_error;
-        }
-        logger_log(conn->raop->logger, LOGGER_DEBUG, "FCUP_Response_URL =  %s", fcup_response_url);
+    if (!PLIST_IS_STRING(plist_fcup_response_url_node)) {
+        goto post_action_error;
     }
-
+    char *fcup_response_url = NULL;
+    plist_get_string_val(plist_fcup_response_url_node, &fcup_response_url);
+    if (!fcup_response_url) {
+        goto post_action_error;
+    }
+    logger_log(conn->raop->logger, LOGGER_DEBUG, "FCUP_Response_URL =  %s", fcup_response_url);
 	
     plist_t plist_fcup_response_data_node = plist_dict_get_item(req_params_node, "FCUP_Response_Data");
     if (!PLIST_IS_DATA(plist_fcup_response_data_node)){
         goto post_action_error;
-    } else {
-        plist_get_data_val(plist_fcup_response_data_node, &fcup_response_data, &uint_val);
-        fcup_response_datalen = (int) uint_val;
-        uint_val = 0;
-	
-	free (fcup_response_data);
-        if (!fcup_response_datalen) {
-	    free (fcup_response_url);
-	    goto post_action_error;
-        }
+    }
+
+    uint_val = 0;
+    char *fcup_response_data = NULL;    
+    plist_get_data_val(plist_fcup_response_data_node, &fcup_response_data, &uint_val);
+    fcup_response_datalen = (int) uint_val;
+
+    if (!fcup_response_data) {
+	free (fcup_response_url);
+	goto post_action_error;
     } 
+
+    if (logger_debug) {
+        logger_log(conn->raop->logger, LOGGER_DEBUG, "FCUP_Response datalen =  %d", fcup_response_datalen);
+        char *ptr = fcup_response_data;
+        printf("[");
+        for (int i = 0; i < fcup_response_datalen; i++) {
+            printf("%c", *ptr);
+        }
+        printf("]\n");
+    }
 
     char *playback_location = process_media_data(media_data_store, fcup_response_url,
                                                  fcup_response_data, fcup_response_datalen);
 
+    free (fcup_response_data);
+    free (fcup_response_url);
     /* play, if location != NULL */
     if (playback_location) {  
         conn->raop->callbacks.on_video_play(conn->raop->callbacks.cls, playback_location,
@@ -514,6 +529,7 @@ http_handler_action(raop_conn_t *conn, http_request_t *request, http_response_t 
     if (req_root_node)  {
       plist_free(req_root_node);
     }
+
 }
 
 static void

@@ -101,14 +101,14 @@ void MediaDataStore::send_fcup_request(const std::string uri, std::string sessio
 }
 
 // called from POST /action handler
-std::string MediaDataStore::process_media_data(const std::string &uri, const char *data, int datalen) {
+std::string MediaDataStore::process_media_data(const std::string &uri, const std::string data) {
 
   std::string media_data;
 
   if (is_primary_data_uri(uri)) {
     master_t master_playlist;
     if (HLS_OK == hlsparse_master_init(&master_playlist)) {
-      if (hlsparse_master(data, datalen, &master_playlist)) {
+      if (hlsparse_master(data.c_str(), data.length(), &master_playlist)) {
 
         // Save all media uri
         media_list_t *media_item = &master_playlist.media;
@@ -290,9 +290,12 @@ extern "C" void media_data_store_destroy(void *media_data_store) {
     delete static_cast<MediaDataStore*>(media_data_store);
 }
 
-extern "C" char *process_media_data(void *media_data_store, const char *url, const char *data, int datalen) {
+extern "C" char *process_media_data(void *media_data_store, const char *url, const char *fcup_data, int datalen) {
+    assert(url);
+    assert(fcup_data);
+    const std::string data(fcup_data, (size_t) datalen);
     const std::string uri(url);
-    auto location = static_cast<MediaDataStore*>(media_data_store)->process_media_data(uri, data, datalen) ;
+    auto location = static_cast<MediaDataStore*>(media_data_store)->process_media_data(uri, data);
     if (!location.empty()) {
         size_t len = location.size();
 	len++;
@@ -304,14 +307,17 @@ extern "C" char *process_media_data(void *media_data_store, const char *url, con
 }
 
 extern "C" bool request_media_data(void *media_data_store, const char *primary_url, const char *session_id_in) {
+    assert(primary_url);
+    assert(session_id_in);
     const std::string primary_uri = primary_url;
     const std::string session_id = session_id_in;
     return static_cast<MediaDataStore*>(media_data_store)->request_media_data(primary_uri, session_id);
 }
 
 extern "C" char *query_media_data(void *media_data_store, const char *url, int *size) {
-    const std::string path = url;
-    std::string data =  static_cast<MediaDataStore*>(media_data_store)->query_media_data(path);
+    assert(url);
+    const std::string uri = url;
+    auto data =  static_cast<MediaDataStore*>(media_data_store)->query_media_data(uri);
     if (data.empty()) {
         *size = 0;
         return NULL;
