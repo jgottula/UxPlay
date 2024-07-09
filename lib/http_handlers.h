@@ -502,6 +502,7 @@ http_handler_action(raop_conn_t *conn, http_request_t *request, http_response_t 
         printf("[");
         for (int i = 0; i < fcup_response_datalen; i++) {
             printf("%c", *ptr);
+	    ptr++;
         }
         printf("]\n");
     }

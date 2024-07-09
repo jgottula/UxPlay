@@ -235,7 +235,11 @@ conn_request(void *ptr, http_request_t *request, http_response_t **response) {
             conn->connection_type = CONNECTION_TYPE_AIRPLAY;
             size_t len = strlen(client_session_id) + 1;
             conn->client_session_id = (char *) malloc(len);
-            strncpy(conn->client_session_id, client_session_id, len);	    
+            strncpy(conn->client_session_id, client_session_id, len);
+            /* since this new connection means that airplay video has been requested, shut down the ntp service */
+	    raop_conn_t *raop_conn = (raop_conn_t *) httpd_get_connection_by_type(conn->raop->httpd, CONNECTION_TYPE_RAOP, 1);
+	    logger_log(conn->raop->logger, LOGGER_DEBUG, "New AirPlay connection: stopping NTP service on RAOP connection %p", raop_conn);
+	    raop_ntp_stop(raop_conn->raop_ntp);
         } else if (host) {
             httpd_set_connection_type(conn->raop->httpd, ptr, CONNECTION_TYPE_HLS);
             conn->connection_type = CONNECTION_TYPE_HLS;

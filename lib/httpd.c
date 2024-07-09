@@ -121,12 +121,30 @@ httpd_get_connection_socket_by_type (httpd_t *httpd, connection_type_t type, int
         }
         if (connection->type == type) {
             count++;
-	    if (count == instance) {
-	      return connection->socket_fd;
-	    }
+            if (count == instance) {
+                return connection->socket_fd;
+            }
         }
     }
     return 0;
+}
+
+void *
+httpd_get_connection_by_type (httpd_t *httpd, connection_type_t type, int instance){
+    int count = 0;
+    for (int i = 0; i < httpd->max_connections; i++) {
+        http_connection_t *connection = &httpd->connections[i];
+        if (!connection->connected) {
+            continue;
+        }
+        if (connection->type == type) {
+            count++;
+            if (count == instance) {
+                return connection->user_data;
+            }
+        }
+    }
+    return NULL;
 }
 
 #define MAX_CONNECTIONS 12  /* value used in AppleTV 3*/
