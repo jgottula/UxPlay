@@ -210,12 +210,10 @@ int create_playback_info_plist_xml(playback_info_t *playback_info, char **plist_
 
     int len;
     plist_to_xml(res_root_node, plist_xml, (uint32_t *) &len);
+    /* plist_xml is null-terminated, last character is '/n' */
+
     plist_free(res_root_node);
 
-    /* remove a final /n (suggested by apsdk-public code):  is this necessary when using plist_to_xml? */
-    len --;
-    (*plist_xml)[len] = '\0';
-    
     return len;
 }
 
@@ -271,10 +269,6 @@ http_handler_playback_info(raop_conn_t *conn, http_request_t *request, http_resp
     add_playback_info_time_range(&playback_info, "seekableTimeRange", playback_info.duration, 0.0);
 
     *response_datalen =  create_playback_info_plist_xml(&playback_info, response_data);
-    /* last character (at *response_data[response_datalen - 1]) is  0x0a = '\n'
-     * (*response_data[response_datalen] is '\0').
-     * apsdk removes the last "\n" by overwriting it with '\0', and reducing response_datalen by 1. 
-     * TODO: check if this is necessary  */
 
     http_response_add_header(response, "Content-Type", "text/x-apple-plist+xml");
 }

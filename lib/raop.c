@@ -279,22 +279,26 @@ conn_request(void *ptr, http_request_t *request, http_response_t **response) {
         const char *request_data = http_request_get_data(request, &request_datalen);
         if (request_data && logger_debug) {
             if (request_datalen > 0) {
+                /* logger has a buffer limit of 4096 */
 	        if (data_is_plist) {
-		    plist_t req_root_node = NULL;
+ 		    plist_t req_root_node = NULL;
 		    plist_from_bin(request_data, request_datalen, &req_root_node);
                     char * plist_xml;
                     uint32_t plist_len;
                     plist_to_xml(req_root_node, &plist_xml, &plist_len);
-                    logger_log(conn->raop->logger, LOGGER_DEBUG, "%s", plist_xml);
+		    printf("%s\n",plist_xml);
+                    //logger_log(conn->raop->logger, LOGGER_DEBUG, "%s", plist_xml);
                     free(plist_xml);
                     plist_free(req_root_node);
                 } else if (data_is_text) {
                     char *data_str = utils_data_to_text((char *) request_data, request_datalen);
-                    logger_log(conn->raop->logger, LOGGER_DEBUG, "%s", data_str);                    
+                    printf("%s\n", data_str);
+                    //logger_log(conn->raop->logger, LOGGER_DEBUG, "%s", data_str);                    
                     free(data_str);
                 } else {
                     char *data_str =  utils_data_to_string((unsigned char *) request_data, request_datalen, 16);
-                    logger_log(conn->raop->logger, LOGGER_DEBUG, "%s", data_str);
+                    printf("%s\n", data_str);
+                    //logger_log(conn->raop->logger, LOGGER_DEBUG, "%s", data_str);
                     free(data_str);
                 }
             }
@@ -412,6 +416,7 @@ conn_request(void *ptr, http_request_t *request, http_response_t **response) {
     free(header_str);
     if (response_data) {
         if (response_datalen > 0 && logger_debug) {
+            /* logger has a buffer limit of 4096 */
             if (data_is_plist) {
                 plist_t res_root_node = NULL;
                 plist_from_bin(response_data, response_datalen, &res_root_node);
@@ -419,15 +424,18 @@ conn_request(void *ptr, http_request_t *request, http_response_t **response) {
                 uint32_t plist_len;
                 plist_to_xml(res_root_node, &plist_xml, &plist_len);
                 plist_free(res_root_node);
-                logger_log(conn->raop->logger, LOGGER_DEBUG, "%s", plist_xml);
+                printf("%s\n", plist_xml);
+                //logger_log(conn->raop->logger, LOGGER_DEBUG, "%s", plist_xml);
                 free(plist_xml);
             } else if (data_is_text) {
                 char *data_str = utils_data_to_text((char*) response_data, response_datalen);
-                logger_log(conn->raop->logger, LOGGER_DEBUG, "%s", data_str);                    
+                printf("%s\n", data_str);
+                //logger_log(conn->raop->logger, LOGGER_DEBUG, "%s", data_str);                    
                 free(data_str);
             } else {
                 char *data_str = utils_data_to_string((unsigned char *) response_data, response_datalen, 16);
-                logger_log(conn->raop->logger, LOGGER_DEBUG, "%s", data_str);
+                printf("%s\n", data_str);
+                //logger_log(conn->raop->logger, LOGGER_DEBUG, "%s", data_str);
                 free(data_str);
             }
         }

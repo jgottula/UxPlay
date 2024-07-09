@@ -31,7 +31,7 @@
 static const char *typename[] = {
     [CONNECTION_TYPE_UNKNOWN] = "Unknown",
     [CONNECTION_TYPE_RAOP]    = "RAOP",
-    [CONNECTION_TYPE_AIRPLAY] = "AirPLay",
+    [CONNECTION_TYPE_AIRPLAY] = "AirPlay",
     [CONNECTION_TYPE_PTTH]    = "PTTH",
     [CONNECTION_TYPE_HLS]     = "HLS"
 };
