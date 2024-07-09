@@ -21,5 +21,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 ------------------------------------------------------------
-include modifications for use in apsdk-public bu Sheen Tian
-//github.com/air-display/apsdk-public
+original source can be found at:
+https://github.com/frejoel/hlsparse
+
+includes modifications for use in apsdk-public made by  Sheen Tian
+https://github.com/air-display/apsdk-public
