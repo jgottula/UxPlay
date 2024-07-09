@@ -306,17 +306,17 @@ extern "C" char *process_media_data(void *media_data_store, const char *url, con
     return NULL;
 }
 
-extern "C" bool request_media_data(void *media_data_store, const char *primary_url, const char *session_id_in) {
+extern "C" bool request_media_data(void *media_data_store, const char *primary_url, const char *apple_session_id) {
     assert(primary_url);
-    assert(session_id_in);
-    const std::string primary_uri = primary_url;
-    const std::string session_id = session_id_in;
+    assert(apple_session_id);
+    const std::string primary_uri(primary_url);
+    const std::string session_id(apple_session_id);
     return static_cast<MediaDataStore*>(media_data_store)->request_media_data(primary_uri, session_id);
 }
 
 extern "C" char *query_media_data(void *media_data_store, const char *url, int *size) {
     assert(url);
-    const std::string uri = url;
+    const std::string uri(url);
     auto data =  static_cast<MediaDataStore*>(media_data_store)->query_media_data(uri);
     if (data.empty()) {
         *size = 0;
