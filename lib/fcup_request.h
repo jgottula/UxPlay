@@ -16,10 +16,6 @@
 
 /* this file is part of raop.c via http_handlers.h and should not be included in any other file */
 
-#include <errno.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include  "sockets.h" 
 
 //produces the fcup request plist in xml format as a null-terminated string
 char *create_fcup_request(const char *url, int request_id, const char *client_session_id, int *datalen) {
