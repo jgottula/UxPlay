@@ -81,7 +81,8 @@ int fcup_request(void *conn_opaque, const char *media_url, const char *client_se
     char *plist_xml = create_fcup_request(media_url, request_id, client_session_id, &datalen);
 
     /* use http_response tools for creating the reverse http request */
-    http_response_t *request = http_response_init_with_codestr("POST", "/event", "HTTP/1.1");
+    http_response_t *request = http_response_create();
+    http_response_reverse_request_init(request, "POST", "/event", "HTTP/1.1");
     http_response_add_header(request, "X-Apple-Session-ID", client_session_id);
     http_response_add_header(request, "Content-Type", "text/x-apple-plist+xml");
     http_response_finish(request, plist_xml, datalen);

@@ -353,8 +353,7 @@ raop_handler_pairsetup_pin(raop_conn_t *conn,
 	return;
     }
  authentication_failed:;
-    http_response_destroy(response);
-    response = http_response_init("RTSP/1.0", 470, "Client Authentication Failure");
+    http_response_init(response, "RTSP/1.0", 470, "Client Authentication Failure");
 }
 
 static void

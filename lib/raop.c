@@ -225,7 +225,8 @@ conn_request(void *ptr, http_request_t *request, http_response_t **response) {
             char ipaddr[40];
             utils_ipaddress_to_string(conn->remotelen, conn->remote, conn->zone_id, ipaddr, (int) (sizeof(ipaddr)));
             logger_log(conn->raop->logger, LOGGER_WARNING, "rejecting new connection request from %s", ipaddr);
-            *response = http_response_init(protocol, 409, "Conflict: Server is connected to another client");
+	    *response = http_response_create();
+            http_response_init(*response, protocol, 409, "Conflict: Server is connected to another client");
             goto finish;
         } else if (cseq) {
             httpd_set_connection_type(conn->raop->httpd, ptr, CONNECTION_TYPE_RAOP);
@@ -249,7 +250,8 @@ conn_request(void *ptr, http_request_t *request, http_response_t **response) {
     }
 
     /* this response code and message  will be modified by the handler if necessary */
-    *response = http_response_init(protocol, 200, "OK");
+    *response = http_response_create();
+    http_response_init(*response, protocol, 200, "OK");
 
     /* is this really necessary? or is it obsolete? (added for all RTSP requests EXCEPT "RECORD") */
     if (cseq && strcmp(method, "RECORD")) {

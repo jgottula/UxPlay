@@ -51,9 +51,29 @@ http_response_add_data(http_response_t *response, const char *data, int datalen)
     response->data_length += datalen;
 }
 
+
 http_response_t *
-http_response_init(const char *protocol, int code, const char *message)
+http_response_create()
 {
+    http_response_t *response =  (http_response_t *) calloc(1, sizeof(http_response_t));
+    if (!response) {
+        return NULL;
+    }
+    /* Allocate response data */
+    response->data_size = 1024;
+    response->data = (char *) malloc(response->data_size);
+    if (!response->data) {
+        free(response);
+        return NULL;
+    }
+    return response;
+}
+
+void
+http_response_init(http_response_t *response, const char *protocol, int code, const char *message)
+{
+    assert(response);
+    response->data_length = 0;    /* can be used to reinitialize a previously-initialized response */
     char codestr[4];
 
     assert(code >= 100 && code < 1000);
@@ -61,25 +81,6 @@ http_response_init(const char *protocol, int code, const char *message)
     /* Convert code into string */
     memset(codestr, 0, sizeof(codestr));
     snprintf(codestr, sizeof(codestr), "%u", code);
-    return http_response_init_with_codestr(protocol, codestr, message);
-}
-
-http_response_t *
-http_response_init_with_codestr(const char *protocol, const char *codestr, const char *message)
-{
-    http_response_t *response;    
-    response = calloc(1, sizeof(http_response_t));
-    if (!response) {
-        return NULL;
-    }
-
-    /* Allocate response data */
-    response->data_size = 1024;
-    response->data = malloc(response->data_size);
-    if (!response->data) {
-        free(response);
-        return NULL;
-    }
 
     /* Add first line of response to the data array */
     http_response_add_data(response, protocol, strlen(protocol));
@@ -88,8 +89,21 @@ http_response_init_with_codestr(const char *protocol, const char *codestr, const
     http_response_add_data(response, " ", 1);
     http_response_add_data(response, message, strlen(message));
     http_response_add_data(response, "\r\n", 2);
+}
 
-    return response;
+void
+http_response_reverse_request_init(http_response_t *request, const char *method, const char *url, const char *protocol)
+{
+    assert(request);
+    request->data_length = 0;  /* reinitialize a previously-initialized response as a reverse-HTTP (PTTH/1.0) request */
+
+    /* Add first line of response to the data array */
+    http_response_add_data(request, method, strlen(method));
+    http_response_add_data(request, " ", 1);
+    http_response_add_data(request, url, strlen(url));
+    http_response_add_data(request, " ", 1);
+    http_response_add_data(request, protocol, strlen(protocol));
+    http_response_add_data(request, "\r\n", 2);
 }
 
 void

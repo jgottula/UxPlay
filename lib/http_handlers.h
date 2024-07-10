@@ -149,8 +149,7 @@ http_handler_fpsetup2(raop_conn_t *conn, http_request_t *request, http_response_
     const unsigned char *req_data = (unsigned char *) http_request_get_data(request, &req_datalen);
     logger_log(conn->raop->logger, LOGGER_ERR, "only FairPlay version 0x03 is implemented, version is 0x%2.2x",
                req_data[4]);
-    http_response_destroy(response);
-    response = http_response_init("HTTP/1.1", 421, "Misdirected Request");
+    http_response_init(response, "HTTP/1.1", 421, "Misdirected Request");
 }
 
 // called by http_handler_playback_info to respond to a GET /playback_info request from the client.
@@ -321,8 +320,7 @@ http_handler_reverse(raop_conn_t *conn, http_request_t *request, http_response_t
 
     if (type_PTTH == 1) {
         logger_log(conn->raop->logger, LOGGER_DEBUG, "will use socket %d for %s connections", socket_fd, purpose);
-        http_response_destroy(response);
-        response = http_response_init("HTTP/1.1", 101, "Switching Protocols");
+        http_response_init(response, "HTTP/1.1", 101, "Switching Protocols");
 	http_response_add_header(response, "Connection", "Upgrade");
 	http_response_add_header(response, "Upgrade", "PTTH/1.0");
 
@@ -518,8 +516,7 @@ http_handler_action(raop_conn_t *conn, http_request_t *request, http_response_t 
     return;
 
  post_action_error:;
-    http_response_destroy(response);
-    response = http_response_init("HTTP/1.1", 400, "Bad Request");
+    http_response_init(response, "HTTP/1.1", 400, "Bad Request");
 
     if (req_root_node)  {
       plist_free(req_root_node);
@@ -640,8 +637,7 @@ http_handler_play(raop_conn_t *conn, http_request_t *request, http_response_t *r
       plist_free(req_root_node);
     }
     logger_log(conn->raop->logger, LOGGER_ERR, "Couldn't find valid Plist Data for /play, Unhandled");
-    http_response_destroy(response);
-    response = http_response_init("HTTP/1.1", 400, "Bad Request");
+    http_response_init(response, "HTTP/1.1", 400, "Bad Request");
 }
 
 static void
@@ -672,7 +668,6 @@ http_handler_hls(raop_conn_t *conn,  http_request_t *request, http_response_t *r
     if (*response_datalen > 0) {
         http_response_add_header(response, "Content-Type", "application/x-mpegURL; charset=utf-8");
     } else if (*response_datalen == 0) {
-      http_response_destroy(response);
-      response = http_response_init("HTTP/1.1", 404, "Not Found");
+        http_response_init(response, "HTTP/1.1", 404, "Not Found");
     }
  }
