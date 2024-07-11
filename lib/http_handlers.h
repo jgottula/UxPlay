@@ -556,7 +556,7 @@ http_handler_play(raop_conn_t *conn, http_request_t *request, http_response_t *r
                    apple_session_id, session_id);
         goto play_error;
     }
-      
+
     int request_datalen = -1;    
     const char *request_data = http_request_get_data(request, &request_datalen);
 
@@ -572,17 +572,17 @@ http_handler_play(raop_conn_t *conn, http_request_t *request, http_response_t *r
     if (!data_is_text && !data_is_octet && !data_is_binary_plist) {
       goto play_error;
     }
-    
+
     if (data_is_text) {
          logger_log(conn->raop->logger, LOGGER_ERR, "Play request Content is text (unsupported)");
 	 goto play_error;
     }
-    
+
     if (data_is_octet) {
          logger_log(conn->raop->logger, LOGGER_ERR, "Play request Content is octet-stream (unsupported)");
 	 goto play_error;
     }
-    
+
     if (data_is_binary_plist) {
         plist_from_bin(request_data, request_datalen, &req_root_node);
 
@@ -608,20 +608,19 @@ http_handler_play(raop_conn_t *conn, http_request_t *request, http_response_t *r
             logger_log(conn->raop->logger, LOGGER_INFO, "No Start-Position-Seconds in Play request");	    
          } else {
              double start_position = 0.0;
-             plist_get_real_val(req_start_position_node, &start_position);
+             plist_get_real_val(req_start_position_seconds_node, &start_position);
 	     start_position_seconds = (float) start_position;
         }
 	set_start_position_seconds(conn->airplay_video, (float) start_position_seconds);
     }
 
     ret = request_media_data(media_data_store, playback_location, apple_session_id);
-    
+
     if (!ret) {
-        /* normal play, not HLS: assume location is valid */
-        logger_log(conn->raop->logger, LOGGER_INFO, "Play normal (non-HLS) video, location = %s", playback_location);
-        //does the player want start position in secs or msecs ?
+        /* normal play, not HLS: assume location is valid (this will also be reached by safari-based HLS, when not valid) */
+        logger_log(conn->raop->logger, LOGGER_INFO, "Attempt to play normal (non-HLS) video, location = %s", playback_location);
         conn->raop->callbacks.on_video_play(conn->raop->callbacks.cls, playback_location, start_position_seconds);
-      }
+    }
 
     if (playback_location) {
         free (playback_location);
@@ -630,13 +629,13 @@ http_handler_play(raop_conn_t *conn, http_request_t *request, http_response_t *r
     if (req_root_node) {
         plist_free(req_root_node);
     }
-     return;
+    return;
 
  play_error:;
     if (req_root_node) {
-      plist_free(req_root_node);
+        plist_free(req_root_node);
     }
-    logger_log(conn->raop->logger, LOGGER_ERR, "Couldn't find valid Plist Data for /play, Unhandled");
+    logger_log(conn->raop->logger, LOGGER_ERR, "Could not find valid Plist Data for /play, Unhandled");
     http_response_init(response, "HTTP/1.1", 400, "Bad Request");
 }
 
