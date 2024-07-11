@@ -491,12 +491,12 @@ http_handler_action(raop_conn_t *conn, http_request_t *request, http_response_t 
     if (logger_debug) {
         logger_log(conn->raop->logger, LOGGER_DEBUG, "FCUP_Response datalen =  %d", fcup_response_datalen);
         char *ptr = fcup_response_data;
-        printf("[");
+	printf("begin FCUP Response data:[");
         for (int i = 0; i < fcup_response_datalen; i++) {
             printf("%c", *ptr);
 	    ptr++;
         }
-        printf("]\n");
+        printf("] end FCUP Response data\n");
     }
 
     char *playback_location = process_media_data(media_data_store, fcup_response_url,
