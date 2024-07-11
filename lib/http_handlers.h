@@ -218,7 +218,7 @@ int create_playback_info_plist_xml(playback_info_t *playback_info, char **plist_
 
 // this adds a time range (duration, start) of time-range_type = "loadedTimeRange" or
 // "seekableTimeRange" to the playback_info struct, and increments the appropriate counter by 1. 
-// Not more than MAX_TIME_RANGES of a give type may be added.
+// Not more than MAX_TIME_RANGES of a given type may be added.
 // returns 0 for success, -1 for failure.
 
 int add_playback_info_time_range(playback_info_t *playback_info, const char *time_range_type,
@@ -608,7 +608,7 @@ http_handler_play(raop_conn_t *conn, http_request_t *request, http_response_t *r
             logger_log(conn->raop->logger, LOGGER_INFO, "No Start-Position-Seconds in Play request");	    
          } else {
              double start_position = 0.0;
-             plist_get_real_val(req_content_location_node, &start_position);
+             plist_get_real_val(req_start_position_node, &start_position);
 	     start_position_seconds = (float) start_position;
         }
 	set_start_position_seconds(conn->airplay_video, (float) start_position_seconds);
