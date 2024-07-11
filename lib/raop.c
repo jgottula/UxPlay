@@ -229,9 +229,11 @@ conn_request(void *ptr, http_request_t *request, http_response_t **response) {
             http_response_init(*response, protocol, 409, "Conflict: Server is connected to another client");
             goto finish;
         } else if (cseq) {
+            logger_log(conn->raop->logger, LOGGER_DEBUG, "New connection %p identified as Connection type RAOP", ptr);
             httpd_set_connection_type(conn->raop->httpd, ptr, CONNECTION_TYPE_RAOP);
             conn->connection_type = CONNECTION_TYPE_RAOP;
         } else if (client_session_id) {
+            logger_log(conn->raop->logger, LOGGER_DEBUG, "New connection %p identified as Connection type AirPlay", ptr);            
             httpd_set_connection_type(conn->raop->httpd, ptr, CONNECTION_TYPE_AIRPLAY);
             conn->connection_type = CONNECTION_TYPE_AIRPLAY;
             size_t len = strlen(client_session_id) + 1;
@@ -249,7 +251,7 @@ conn_request(void *ptr, http_request_t *request, http_response_t **response) {
 
             raop_rtp_t *raop_rtp = raop_conn->raop_rtp;
 	    if (raop_rtp) {
-	      logger_log(conn->raop->logger, LOGGER_DEBUG, "New AirPlay connection: stopping RAOP audio"
+                logger_log(conn->raop->logger, LOGGER_DEBUG, "New AirPlay connection: stopping RAOP audio"
                            " service on RAOP connection %p", raop_conn);
                 raop_rtp_stop(raop_rtp);
             }
@@ -262,6 +264,7 @@ conn_request(void *ptr, http_request_t *request, http_response_t **response) {
             }
 
         } else if (host) {
+            logger_log(conn->raop->logger, LOGGER_DEBUG, "New connection %p identified as Connection type HLS", ptr);            
             httpd_set_connection_type(conn->raop->httpd, ptr, CONNECTION_TYPE_HLS);
             conn->connection_type = CONNECTION_TYPE_HLS;
         } else {
