@@ -1033,6 +1033,8 @@ static void parse_arguments (int argc, char *argv[]) {
         } else if (arg == "-bt709") {
             bt709_fix = true;
         } else if (arg == "-nohold") {
+	    fprintf(stderr,"option -nohold is currently not accepted in this experimental UxPlay version with video streaming\n");
+	    exit (1);
             nohold = 1;
         } else if (arg == "-al") {
 	    int n;
