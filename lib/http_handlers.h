@@ -378,7 +378,7 @@ http_handler_action(raop_conn_t *conn, http_request_t *request, http_response_t 
     /* verify that this reponse contains a binary plist*/
     char *header_str = NULL;
     http_request_get_header_string(request, &header_str);
-    logger_log(conn->raop->logger, LOGGER_INFO, "request header: %s", header_str);
+    logger_log(conn->raop->logger, LOGGER_DEBUG, "request header: %s", header_str);
     data_is_plist = (strstr(header_str,"apple-binary-plist") != NULL);
     free(header_str);
     if (!data_is_plist) {
@@ -405,7 +405,7 @@ http_handler_action(raop_conn_t *conn, http_request_t *request, http_response_t 
     char *type = NULL;
     int action_type = 0;
     plist_get_string_val(req_type_node, &type);
-    logger_log(conn->raop->logger, LOGGER_INFO, "action type is %s", type);
+    logger_log(conn->raop->logger, LOGGER_DEBUG, "action type is %s", type);
     if (strstr(type, "unhandledURLResponse")) {
       action_type =  1;
     } else if (strstr(type, "playlistInsert")) {
@@ -563,7 +563,7 @@ http_handler_play(raop_conn_t *conn, http_request_t *request, http_response_t *r
     if (request_datalen > 0) {
         char *header_str = NULL;
         http_request_get_header_string(request, &header_str);
-        logger_log(conn->raop->logger, LOGGER_INFO, "request header:\n%s", header_str);
+        logger_log(conn->raop->logger, LOGGER_DEBUG, "request header:\n%s", header_str);
 	data_is_binary_plist = (strstr(header_str, "x-apple-binary-plist") != NULL);
 	data_is_text = (strstr(header_str, "text/parameters") != NULL);
 	data_is_octet = (strstr(header_str, "octet-stream") != NULL);
