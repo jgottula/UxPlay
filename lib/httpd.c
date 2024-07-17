@@ -272,21 +272,6 @@ httpd_accept_connection(httpd_t *httpd, int server_fd, int is_ipv6)
     local = netutils_get_address(&local_saddr, &local_len, &local_zone_id);
     remote = netutils_get_address(&remote_saddr, &remote_len, &remote_zone_id);
     assert (local_zone_id == remote_zone_id);
-    
-    /* remove existing connections to make way for new connections, if http->nohold is set:
-     * this will only occur if open_connections >= 1  and a connection with CONNECTION_TYPE_RAOP already exists */
-    if (httpd->nohold && httpd->open_connections)  {
-      if (httpd_count_connection_type(httpd, CONNECTION_TYPE_RAOP)) {
-            logger_log(httpd->logger, LOGGER_INFO, "Destroying current connections to allow connection by new client");
-            for (int i = 0; i<httpd->max_connections; i++) {
-                http_connection_t *connection = &httpd->connections[i];
-                if (!connection->connected) {
-                    continue;
-                }
-	        httpd_remove_connection(httpd, connection);
-            }
-        }
-    }
 
     ret = httpd_add_connection(httpd, fd, local, local_len, remote, remote_len, local_zone_id);
     if (ret == -1) {
@@ -297,6 +282,22 @@ httpd_accept_connection(httpd_t *httpd, int server_fd, int is_ipv6)
     return 1;
 }
 
+bool
+httpd_nohold(httpd_t *httpd) {
+    return (httpd->nohold ? true: false);
+}
+
+void
+httpd_remove_known_connections(httpd_t *httpd) {
+    for (int i = 0; i < httpd->max_connections; i++) {
+        http_connection_t *connection = &httpd->connections[i];
+        if (!connection->connected || connection->type == CONNECTION_TYPE_UNKNOWN) {
+            continue;
+        }
+	httpd_remove_connection(httpd, connection);
+    }
+}
+	
 static THREAD_RETVAL
 httpd_thread(void *arg)
 {
@@ -401,7 +402,7 @@ httpd_thread(void *arg)
                 if (connection->type == CONNECTION_TYPE_PTTH) {
                     http_request_is_reverse(connection->request);
                 }
-		printf("new request, connection %d, socket %d\n", i, connection->socket_fd);
+		printf("new request, connection %d, socket %d type %s\n", i, connection->socket_fd, typename [connection->type]);
             } else {
                 new_request = 0;
 	    }

@@ -1033,8 +1033,6 @@ static void parse_arguments (int argc, char *argv[]) {
         } else if (arg == "-bt709") {
             bt709_fix = true;
         } else if (arg == "-nohold") {
-	    fprintf(stderr,"option -nohold is currently not accepted in this experimental UxPlay version with video streaming\n");
-	    exit (1);
             nohold = 1;
         } else if (arg == "-al") {
 	    int n;
@@ -1452,6 +1450,12 @@ static bool check_blocked_client(char *deviceid) {
 
 // Server callbacks
 
+extern "C" void video_reset(void *cls) {
+    reset_loop = true;
+    remote_clock_offset = 0;
+    relaunch_video = true;
+}
+
 extern "C" void display_pin(void *cls, char *pin) {
     int margin = 10;
     int spacing = 3;
@@ -1864,7 +1868,8 @@ static int start_raop_server (unsigned short display[5], unsigned short tcp[3], 
     raop_cbs.on_video_rate = on_video_rate;
     raop_cbs.on_video_stop = on_video_stop;
     raop_cbs.on_video_acquire_playback_info = on_video_acquire_playback_info;
-    
+    raop_cbs.video_reset = video_reset;
+
     raop = raop_init(&raop_cbs);
     if (raop == NULL) {
         LOGE("Error initializing raop!");
