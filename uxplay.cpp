@@ -410,7 +410,7 @@ static void main_loop()  {
     if (use_video) {
         relaunch_video = true;
         gst_bus_watch_id = (guint) video_renderer_listen((void *)loop);
-        gst_x11_window_id = g_timeout_add(34, (GSourceFunc) x11_window_callback, (gpointer) loop);
+        gst_x11_window_id = g_timeout_add(100, (GSourceFunc) x11_window_callback, (gpointer) loop);
     }
     guint reset_watch_id = g_timeout_add(100, (GSourceFunc) reset_callback, (gpointer) loop);
     guint sigterm_watch_id = g_unix_signal_add(SIGTERM, (GSourceFunc) sigterm_callback, (gpointer) loop);
