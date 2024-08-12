@@ -140,6 +140,8 @@ static std::vector <std::string> registered_keys;
 static double db_low = -30.0;
 static double db_high = 0.0;
 static bool taper_volume = false;
+static std::string url = "";
+static guint gst_x11_window_id = 0;
 
 /* logging */
 
@@ -356,6 +358,16 @@ static gboolean reset_callback(gpointer loop) {
     return TRUE;
 }
 
+static gboolean x11_window_callback(gpointer loop) {
+    /* called while trying to find an x11 window used by playbin (HLS mode) */
+    if (waiting_for_x11_window()) {
+        return TRUE;
+    }
+    g_source_remove(gst_x11_window_id);
+    gst_x11_window_id = 0;
+    return FALSE;
+}
+
 static gboolean  sigint_callback(gpointer loop) {
     relaunch_video = false;
     g_main_loop_quit((GMainLoop *) loop);
@@ -391,17 +403,20 @@ static guint g_unix_signal_add(gint signum, GSourceFunc handler, gpointer user_d
 
 static void main_loop()  {
     guint gst_bus_watch_id = 0;
+
     GMainLoop *loop = g_main_loop_new(NULL,FALSE);
     relaunch_video = false;
     if (use_video) {
         relaunch_video = true;
         gst_bus_watch_id = (guint) video_renderer_listen((void *)loop);
+        gst_x11_window_id = g_timeout_add(34, (GSourceFunc) x11_window_callback, (gpointer) loop);
     }
     guint reset_watch_id = g_timeout_add(100, (GSourceFunc) reset_callback, (gpointer) loop);
     guint sigterm_watch_id = g_unix_signal_add(SIGTERM, (GSourceFunc) sigterm_callback, (gpointer) loop);
     guint sigint_watch_id = g_unix_signal_add(SIGINT, (GSourceFunc) sigint_callback, (gpointer) loop);
     g_main_loop_run(loop);
 
+    if (gst_x11_window_id > 0) g_source_remove(gst_x11_window_id);
     if (gst_bus_watch_id > 0) g_source_remove(gst_bus_watch_id);
     if (sigint_watch_id > 0) g_source_remove(sigint_watch_id);
     if (sigterm_watch_id > 0) g_source_remove(sigterm_watch_id);
@@ -1778,21 +1793,12 @@ extern "C" bool check_register(void *cls, const char *client_pk) {
 /* control  callbacks for video player (unimplemented) */
 
 extern "C" void on_video_play(void *cls, const char* location, const float start_position) {
-    char play_cmd[] = "nohup gst-launch-1.0 playbin uri=";
-
-    LOGI("on_video_play: location %s start_pos = %7.5f\n", location, start_position);
-
-    size_t len = strlen(play_cmd) + strlen(location) + 3;
-    char *command = (char *) calloc(len, sizeof(char));
-    strncat(command, play_cmd, len);
-    strncat(command, location, len);
-    strncat(command, " &", len);
-    LOGI("HLS player command is: \"%s\"", command);
-    
-    /* start  playbin */
-    system(command);
-
-    free  (command);
+    url.erase();
+    url.append(location);
+    reset_loop = true;
+    relaunch_video = true;
+  
+    printf("on_video_play: location = %s\n", url.c_str());
 }
 
 extern "C" void on_video_scrub(void *cls, const float position) {
@@ -2168,8 +2174,8 @@ int main (int argc, char *argv[]) {
 
     if (use_video) {
         video_renderer_init(render_logger, server_name.c_str(), videoflip, video_parser.c_str(),
-                            video_decoder.c_str(), video_converter.c_str(), videosink.c_str(), &fullscreen, &video_sync);
-        video_renderer_start();
+                            video_decoder.c_str(), video_converter.c_str(), videosink.c_str(), &fullscreen, &video_sync, false);
+        video_renderer_start(NULL);
     }
 
     if (udp[0]) {
@@ -2215,17 +2221,36 @@ int main (int argc, char *argv[]) {
     main_loop();
     if (relaunch_video || reset_loop) {
         if(reset_loop) {
+	  printf("reset loop\n");
+	  printf("close_window is %s\n", (close_window ? "true" : "false")); 
             reset_loop = false;
         } else {
             raop_stop(raop);
         }
         if (use_audio) audio_renderer_stop();
         if (use_video && close_window) {
+	    printf("video_renderer_stop:\n");
+            video_renderer_stop();
+	    printf("video_renderer_destroy:\n");
             video_renderer_destroy();
-            video_renderer_init(render_logger, server_name.c_str(), videoflip, video_parser.c_str(),
-                                video_decoder.c_str(), video_converter.c_str(), videosink.c_str(), &fullscreen,
-                                &video_sync);
-            video_renderer_start();
+	    printf("video_renderer_init:\n");
+	    printf("new video_renderer_init: done \n");
+            if (url.empty()) {	      
+ 	      video_renderer_init(render_logger, server_name.c_str(), videoflip, video_parser.c_str(),
+				  video_decoder.c_str(), video_converter.c_str(), videosink.c_str(), &fullscreen,
+				  &video_sync, false);
+                video_renderer_start(NULL);
+            } else {
+                LOGI(" start playbin with url %s", url.c_str());
+ 	      video_renderer_init(render_logger, server_name.c_str(), videoflip, video_parser.c_str(),
+				  video_decoder.c_str(), video_converter.c_str(), videosink.c_str(), &fullscreen,
+				  &video_sync, true);
+
+
+
+		video_renderer_start(url.c_str());
+                url.erase();
+            }
         }
         if (relaunch_video) {
             unsigned short port = raop_get_port(raop);

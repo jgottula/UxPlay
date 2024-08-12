@@ -505,9 +505,9 @@ http_handler_action(raop_conn_t *conn, http_request_t *request, http_response_t 
     free (fcup_response_data);
     free (fcup_response_url);
     /* play, if location != NULL */
-    if (playback_location) {  
+    if (playback_location) {
         conn->raop->callbacks.on_video_play(conn->raop->callbacks.cls, playback_location,
-					    get_start_position_seconds(conn->airplay_video));
+                                            get_start_position_seconds(conn->airplay_video));
         free (playback_location);
     }
 
