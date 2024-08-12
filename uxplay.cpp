@@ -1799,6 +1799,7 @@ extern "C" bool check_register(void *cls, const char *client_pk) {
 /* control  callbacks for video player (unimplemented) */
 
 extern "C" void on_video_play(void *cls, const char* location, const float start_position) {
+    /* start_position needs to be implemented */
     url.erase();
     url.append(location);
     reset_loop = true;
@@ -2180,8 +2181,8 @@ int main (int argc, char *argv[]) {
 
     if (use_video) {
         video_renderer_init(render_logger, server_name.c_str(), videoflip, video_parser.c_str(),
-                            video_decoder.c_str(), video_converter.c_str(), videosink.c_str(), &fullscreen, &video_sync, false);
-        video_renderer_start(NULL);
+                            video_decoder.c_str(), video_converter.c_str(), videosink.c_str(), &fullscreen, &video_sync, NULL);
+        video_renderer_start();
     }
 
     if (udp[0]) {
@@ -2227,36 +2228,19 @@ int main (int argc, char *argv[]) {
     main_loop();
     if (relaunch_video || reset_loop) {
         if(reset_loop) {
-	  printf("reset loop\n");
-	  printf("close_window is %s\n", (close_window ? "true" : "false")); 
             reset_loop = false;
         } else {
             raop_stop(raop);
         }
         if (use_audio) audio_renderer_stop();
         if (use_video && close_window) {
-	    printf("video_renderer_stop:\n");
-            video_renderer_stop();
-	    printf("video_renderer_destroy:\n");
+	  //video_renderer_stop();
             video_renderer_destroy();
-	    printf("video_renderer_init:\n");
-	    printf("new video_renderer_init: done \n");
-            if (url.empty()) {	      
- 	      video_renderer_init(render_logger, server_name.c_str(), videoflip, video_parser.c_str(),
-				  video_decoder.c_str(), video_converter.c_str(), videosink.c_str(), &fullscreen,
-				  &video_sync, false);
-                video_renderer_start(NULL);
-            } else {
-                LOGI(" start playbin with url %s", url.c_str());
- 	      video_renderer_init(render_logger, server_name.c_str(), videoflip, video_parser.c_str(),
-				  video_decoder.c_str(), video_converter.c_str(), videosink.c_str(), &fullscreen,
-				  &video_sync, true);
-
-
-
-		video_renderer_start(url.c_str());
-                url.erase();
-            }
+	    const char *uri = (url.empty() ? NULL : url.c_str());
+            video_renderer_init(render_logger, server_name.c_str(), videoflip, video_parser.c_str(),
+                                video_decoder.c_str(), video_converter.c_str(), videosink.c_str(), &fullscreen,
+                                &video_sync, uri);
+            video_renderer_start();
         }
         if (relaunch_video) {
             unsigned short port = raop_get_port(raop);

@@ -49,8 +49,8 @@ typedef struct video_renderer_s video_renderer_t;
 
 void video_renderer_init (logger_t *logger, const char *server_name, videoflip_t videoflip[2], const char *parser,
                           const char *decoder, const char *converter, const char *videosink, const bool *fullscreen,
-                          const bool *video_sync, bool hls);
-void video_renderer_start (const char * url);
+                          const bool *video_sync, const char *uri);
+void video_renderer_start ();
 void video_renderer_stop ();
 void video_renderer_pause ();
 void video_renderer_resume ();
@@ -60,8 +60,8 @@ void video_renderer_flush ();
 unsigned int video_renderer_listen(void *loop);
 void video_renderer_destroy ();
 void video_renderer_size(float *width_source, float *height_source, float *width, float *height);
-bool waiting_for_x11_window();  
-  /* not implemented for gstreamer */
+bool waiting_for_x11_window();
+/* not implemented for gstreamer */
 void video_renderer_update_background (int type); 
 
 #ifdef __cplusplus

@@ -51,7 +51,7 @@ struct video_renderer_s {
     gboolean playing, terminate, seek_enabled, seek_done;
     gint64 duration;
 #ifdef  X_DISPLAY_FIX
-    const char * server_name; 
+    const char * server_name;
     X11_Window_t * gst_window;
 #endif
 };
@@ -103,7 +103,7 @@ static void append_videoflip (GString *launch, const videoflip_t *flip, const vi
         case LEFT:
             g_string_append(launch, "videoflip video-direction=GST_VIDEO_ORIENTATION_90L ! ");
             break;
-        case RIGHT: 
+        case RIGHT:
             g_string_append(launch, "videoflip video-direction=GST_VIDEO_ORIENTATION_90R ! ");
             break;
         default:
@@ -179,7 +179,7 @@ GstElement *make_video_sink(const char *videosink) {
 
 void  video_renderer_init(logger_t *render_logger, const char *server_name, videoflip_t videoflip[2], const char *parser,
                           const char *decoder, const char *converter, const char *videosink, const bool *initial_fullscreen,
-                          const bool *video_sync, const bool hls) {
+                          const bool *video_sync, const char *uri) {
     GError *error = NULL;
     GstCaps *caps = NULL;
     GstClock *clock = gst_system_clock_obtain();
@@ -200,7 +200,7 @@ void  video_renderer_init(logger_t *render_logger, const char *server_name, vide
     renderer = calloc(1, sizeof(video_renderer_t));
     g_assert(renderer);
 
-    if (!hls) {
+    if (!uri) {
         hls_video  = false;
         GString *launch = g_string_new("appsrc name=video_source ! ");
         g_string_append(launch, "queue ! ");
@@ -251,6 +251,7 @@ void  video_renderer_init(logger_t *render_logger, const char *server_name, vide
                 gst_object_unref(playbin_videosink);
             }
         }
+        g_object_set (G_OBJECT (renderer->pipeline), "uri", uri, NULL);
     }
 #ifdef X_DISPLAY_FIX
     use_x11 = (strstr(videosink, "xvimagesink") || strstr(videosink, "ximagesink") || auto_videosink);
@@ -301,21 +302,11 @@ bool video_renderer_is_paused() {
     return (state == GST_STATE_PAUSED);
 }
 
-void video_renderer_start(const char *url) {
-    if (url) {
-        g_assert(hls_video);
-        g_object_set (G_OBJECT (renderer->pipeline), "uri", url, NULL);
-        renderer->bus = gst_element_get_bus(renderer->pipeline);	
-        GstStateChangeReturn ret = gst_element_set_state (renderer->pipeline, GST_STATE_PLAYING);
-        if (ret == GST_STATE_CHANGE_FAILURE) {
-            g_printerr ("Unable to set the playbin pipeline to the playing state.\n");
-            g_assert(0);
-        }
-    } else {
-        g_assert(!hls_video);
-        gst_element_set_state (renderer->pipeline, GST_STATE_PLAYING);
+void video_renderer_start() {
+    renderer->bus = gst_element_get_bus(renderer->pipeline);
+    gst_element_set_state (renderer->pipeline, GST_STATE_PLAYING);
+    if (!hls_video) {
         gst_video_pipeline_base_time = gst_element_get_base_time(renderer->appsrc);
-        renderer->bus = gst_element_get_bus(renderer->pipeline);
         first_packet = true;
     }
 #ifdef X_DISPLAY_FIX
@@ -412,12 +403,11 @@ void video_renderer_destroy() {
     if (renderer) {
         GstState state;
         gst_element_get_state(renderer->pipeline, &state, NULL, 0);
-
         if (state != GST_STATE_NULL) {
             if (!hls_video) {
                 gst_app_src_end_of_stream (GST_APP_SRC(renderer->appsrc));
             }
-            gst_element_get_state(renderer->pipeline, &state, NULL, 0);
+            gst_element_set_state (renderer->pipeline, GST_STATE_NULL);
         }
         gst_object_unref(renderer->bus);
 	if (!hls_video) {
@@ -472,11 +462,11 @@ gboolean gstreamer_pipeline_bus_callback(GstBus *bus, GstMessage *message, gpoin
          logger_log(logger, LOGGER_INFO, "GStreamer: End-Of-Stream");
 	//   g_main_loop_quit( (GMainLoop *) loop);
         break;
-    case GST_MESSAGE_DURATION:
-      	printf("bus message (hls/playbin): %s\n", GST_MESSAGE_TYPE_NAME(message));
+    //case GST_MESSAGE_DURATION:
+      	//printf("bus message (hls/playbin): %s\n", GST_MESSAGE_TYPE_NAME(message));
         /* The duration has changed, mark the current one as invalid */
-        renderer->duration = GST_CLOCK_TIME_NONE;
-        break;
+        //renderer->duration = GST_CLOCK_TIME_NONE;
+        //break;
     case GST_MESSAGE_STATE_CHANGED:
         printf("bus message %s: %s\n", GST_MESSAGE_SRC_NAME(message), GST_MESSAGE_TYPE_NAME(message));
         if (auto_videosink) {
