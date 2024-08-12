@@ -36,6 +36,7 @@ static unsigned char X11_search_attempts;
 static video_renderer_t *renderer = NULL;
 static GstClockTime gst_video_pipeline_base_time = GST_CLOCK_TIME_NONE;
 static logger_t *logger = NULL;
+static bool logger_debug;
 static unsigned short width, height, width_source, height_source;  /* not currently used */
 static bool first_packet = false;
 static bool sync = false;
@@ -189,6 +190,7 @@ void  video_renderer_init(logger_t *render_logger, const char *server_name, vide
     auto_videosink = (strstr(videosink, "autovideosink") || strstr(videosink, "fpsdisplaysink"));
 
     logger = render_logger;
+    logger_debug = (logger_get_level(logger) >= LOGGER_DEBUG);
 
     /* this call to g_set_application_name makes server_name appear in the  X11 display window title bar, */
     /* (instead of the program name uxplay taken from (argv[0]). It is only set one time. */
@@ -431,6 +433,9 @@ void video_renderer_update_background(int type) {
 }
 
 gboolean gstreamer_pipeline_bus_callback(GstBus *bus, GstMessage *message, gpointer loop) {
+    if (logger_debug) {
+        printf("GStreamer bus message %s: %s\n", GST_MESSAGE_SRC_NAME(message), GST_MESSAGE_TYPE_NAME(message));
+    }
     switch (GST_MESSAGE_TYPE (message)) {
     case GST_MESSAGE_ERROR: {
         GError *err;
@@ -459,8 +464,8 @@ gboolean gstreamer_pipeline_bus_callback(GstBus *bus, GstMessage *message, gpoin
     }
     case GST_MESSAGE_EOS:
       /* end-of-stream */
-         logger_log(logger, LOGGER_INFO, "GStreamer: End-Of-Stream");
-	//   g_main_loop_quit( (GMainLoop *) loop);
+        logger_log(logger, LOGGER_INFO, "GStreamer: End-Of-Stream");
+	//g_main_loop_quit( (GMainLoop *) loop);
         break;
     //case GST_MESSAGE_DURATION:
       	//printf("bus message (hls/playbin): %s\n", GST_MESSAGE_TYPE_NAME(message));
@@ -468,7 +473,6 @@ gboolean gstreamer_pipeline_bus_callback(GstBus *bus, GstMessage *message, gpoin
         //renderer->duration = GST_CLOCK_TIME_NONE;
         //break;
     case GST_MESSAGE_STATE_CHANGED:
-        printf("bus message %s: %s\n", GST_MESSAGE_SRC_NAME(message), GST_MESSAGE_TYPE_NAME(message));
         if (auto_videosink) {
             char *sink = strstr(GST_MESSAGE_SRC_NAME(message), "-actual-sink-");
             if (sink) {
