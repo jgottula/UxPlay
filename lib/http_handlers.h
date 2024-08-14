@@ -81,7 +81,7 @@ http_handler_server_info(raop_conn_t *conn, http_request_t *request, http_respon
     http_response_add_header(response, "Content-Type", "text/x-apple-plist+xml");
     free(hw_addr);
     
-    /* initialize the aiplay video service */
+    /* initialize the airplay video service */
     const char *session_id = http_request_get_header(request, "X-Apple-Session-ID");
 
     conn->airplay_video =  (void *) airplay_video_service_init(conn, conn->raop, conn->raop->port, session_id);
@@ -115,6 +115,7 @@ http_handler_scrub(raop_conn_t *conn, http_request_t *request, http_response_t *
                      scrub_position);	  
 	}
     }
+    printf("**********************SCRUB %f ***********************\n",scrub_position);
     conn->raop->callbacks.on_video_scrub(conn->raop->callbacks.cls, scrub_position);
 }
 
@@ -129,10 +130,9 @@ http_handler_rate(raop_conn_t *conn, http_request_t *request, http_response_t *r
         data++;
 	const char *rate = strstr(data, "=") + 1;
 	char *end;
-	double value = strtod(rate, &end);
+	float value = strtof(rate, &end);
 	if (end && end != rate) {
-	  rate_value = (float) value;
-          set_playback_info_item(conn->airplay_video, "rate", 0, &rate_value);
+	  rate_value =  value;
 	  logger_log(conn->raop->logger, LOGGER_DEBUG, "http_handler_rate: got rate = %.6f", rate_value);	  
 	}
     }
@@ -153,6 +153,27 @@ http_handler_fpsetup2(raop_conn_t *conn, http_request_t *request, http_response_
 }
 
 // called by http_handler_playback_info to respond to a GET /playback_info request from the client.
+
+void time_range_to_plist(void *time_ranges, const int n_time_ranges,
+		         plist_t time_ranges_node) {
+    void *ptr = time_ranges;
+    double *val;
+    for (int i = 0 ; i < n_time_ranges; i++) {
+        plist_t time_range_node = plist_new_dict();
+
+        val = (double *) ptr;
+        plist_t duration_node = plist_new_real(*val);
+        plist_dict_set_item(time_range_node, "duration", duration_node);
+	ptr += sizeof(double);
+
+        val = (double *) ptr;
+        plist_t start_node = plist_new_real(*val);
+        plist_dict_set_item(time_range_node, "start", start_node);
+	ptr += sizeof(double);
+
+        plist_array_append_item(time_ranges_node, time_range_node);
+    }
+}
 
 int create_playback_info_plist_xml(playback_info_t *playback_info, char **plist_xml) {
 
@@ -181,30 +202,13 @@ int create_playback_info_plist_xml(playback_info_t *playback_info, char **plist_
     plist_dict_set_item(res_root_node, "playbackLikelyToKeepUp", playback_likely_to_keep_up_node);
 
     plist_t loaded_time_ranges_node = plist_new_array();
-
-    for (int i = 0 ; i < playback_info->num_loaded_time_ranges; i++) {
-        assert (i < MAX_TIME_RANGES);
-	time_range_t *time_range = &playback_info->loadedTimeRanges[i];
-        plist_t time_range_node = plist_new_dict();
-        plist_t duration_node = plist_new_real( time_range->duration);
-        plist_dict_set_item(time_range_node, "duration", duration_node);
-        plist_t start_node = plist_new_real( time_range->start);
-        plist_dict_set_item(time_range_node, "start", start_node);
-        plist_array_append_item(loaded_time_ranges_node, time_range_node);
-    }
+    time_range_to_plist(playback_info->loadedTimeRanges, playback_info->num_loaded_time_ranges,
+			loaded_time_ranges_node);
     plist_dict_set_item(res_root_node, "loadedTimeRanges", loaded_time_ranges_node);
 
     plist_t seekable_time_ranges_node = plist_new_array();
-    for (int i = 0 ; i < playback_info->num_seekable_time_ranges; i++) {
-        assert (i < MAX_TIME_RANGES);
-	time_range_t *time_range = &playback_info->loadedTimeRanges[i];
-        plist_t time_range_node = plist_new_dict();
-        plist_t duration_node = plist_new_real(time_range->duration);
-        plist_dict_set_item(time_range_node, "duration", duration_node);
-        plist_t start_node = plist_new_real(time_range->start);
-        plist_dict_set_item(time_range_node, "start", start_node);
-        plist_array_append_item(seekable_time_ranges_node, time_range_node);
-    }
+    time_range_to_plist(playback_info->seekableTimeRanges, playback_info->num_seekable_time_ranges,
+			seekable_time_ranges_node);
     plist_dict_set_item(res_root_node, "seekableTimeRanges", seekable_time_ranges_node);
 
     int len;
@@ -216,59 +220,31 @@ int create_playback_info_plist_xml(playback_info_t *playback_info, char **plist_
     return len;
 }
 
-// this adds a time range (duration, start) of time-range_type = "loadedTimeRange" or
-// "seekableTimeRange" to the playback_info struct, and increments the appropriate counter by 1. 
-// Not more than MAX_TIME_RANGES of a given type may be added.
-// returns 0 for success, -1 for failure.
-
-int add_playback_info_time_range(playback_info_t *playback_info, const char *time_range_type,
-                                double duration, double start) {
-    time_range_t *time_range;
-    int *time_range_num;
-     if (!strcmp(time_range_type, "loadedTimeRange")) {
-        time_range_num = &(playback_info->num_loaded_time_ranges);
-        time_range = (time_range_t *) &playback_info->loadedTimeRanges[*time_range_num];
-    } else if (!strcmp(time_range_type, "seekableTimeRange")) {
-        time_range_num = &(playback_info->num_seekable_time_ranges);
-        time_range = (time_range_t *) &playback_info->seekableTimeRanges[*time_range_num];
-    } else {
-        return -1;
-    }
-    
-    if (*time_range_num == MAX_TIME_RANGES) {
-        return -1;
-    }
-
-    time_range->duration = duration;
-    time_range->start = start;
-    (*time_range_num)++;
-    return 0;
-}
-
 static void
 http_handler_playback_info(raop_conn_t *conn, http_request_t *request, http_response_t *response,
                            char **response_data, int *response_datalen)
 {
     logger_log(conn->raop->logger, LOGGER_DEBUG, "http_handler_playback_info");
     //const char *session_id = http_request_get_header(request, "X-Apple-Session-ID");
-
     playback_info_t playback_info;
+    // use same single time range (duration, start = 0) for both loaded and seekable time ranges
+    double time_range[2];
+    playback_info.num_loaded_time_ranges = 1;
+    playback_info.loadedTimeRanges = (void *) time_range;
+    playback_info.num_seekable_time_ranges = 1;
+    playback_info.seekableTimeRanges = (void *) time_range;
+
     playback_info.stallcount = 0;
-    playback_info.duration = 0.0;
-    playback_info.position =  0.0f;
-    playback_info.ready_to_play = false;
-    playback_info.playback_buffer_empty = true;
+    playback_info.ready_to_play = false; // ???;
+    playback_info.playback_buffer_empty = true;   // maybe  need to get this from playbin 
     playback_info.playback_buffer_full = false;
     playback_info.playback_likely_to_keep_up = true;
-    playback_info.num_loaded_time_ranges = 0;
-    playback_info.num_seekable_time_ranges = 0;
 
     conn->raop->callbacks.on_video_acquire_playback_info(conn->raop->callbacks.cls, &playback_info);
-    add_playback_info_time_range(&playback_info, "loadedTimeRange", playback_info.duration, 0.0);
-    add_playback_info_time_range(&playback_info, "seekableTimeRange", playback_info.duration, 0.0);
+    time_range[0] = playback_info.duration;
+    time_range[1] = 0;
 
     *response_datalen =  create_playback_info_plist_xml(&playback_info, response_data);
-
     http_response_add_header(response, "Content-Type", "text/x-apple-plist+xml");
 }
 
@@ -491,12 +467,12 @@ http_handler_action(raop_conn_t *conn, http_request_t *request, http_response_t 
     if (logger_debug) {
         logger_log(conn->raop->logger, LOGGER_DEBUG, "FCUP_Response datalen =  %d", fcup_response_datalen);
         char *ptr = fcup_response_data;
-	printf("begin FCUP Response data:[");
+	printf("begin FCUP Response data:");
         for (int i = 0; i < fcup_response_datalen; i++) {
             printf("%c", *ptr);
 	    ptr++;
         }
-        printf("] end FCUP Response data\n");
+        printf("end FCUP Response data\n");
     }
 
     char *playback_location = process_media_data(media_data_store, fcup_response_url,
