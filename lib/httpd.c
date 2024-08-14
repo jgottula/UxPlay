@@ -32,7 +32,7 @@ static const char *typename[] = {
     [CONNECTION_TYPE_UNKNOWN] = "Unknown",
     [CONNECTION_TYPE_RAOP]    = "RAOP",
     [CONNECTION_TYPE_AIRPLAY] = "AirPlay",
-    [CONNECTION_TYPE_PTTH]    = "PTTH",
+    [CONNECTION_TYPE_PTTH]    = "AirPlay (reversed)",
     [CONNECTION_TYPE_HLS]     = "HLS"
 };
 
@@ -417,15 +417,15 @@ httpd_thread(void *arg)
                         continue;
                     }
                     if (!FD_ISSET(connection->socket_fd, &rfds)) {
-                        printf("connection %d type %d socket %d  conn %p %s !FD_ISSET\n", i,
+                        printf("connection %d type %d socket %d  conn %p %s\n", i,
                                connection->type, connection->socket_fd,
                                connection->user_data, typename [connection->type]);
 		    } else {
-                        printf("connection %d type %d socket %d  conn %p %s\n", i, connection->type,
+                        printf("connection %d type %d socket %d  conn %p %s ACTIVE CONNECTION\n", i, connection->type,
                                connection->socket_fd, connection->user_data, typename [connection->type]);
                     }
-                    printf("\n");
                 }
+		printf("\n");
 	    }
             /* reverse-http responses from the client must not be sent to the llhttp parser:
              * such messages start with "HTTP/1.1" */
