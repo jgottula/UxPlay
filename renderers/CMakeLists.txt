@@ -43,6 +43,7 @@ pkg_check_modules ( GST124 gstreamer-1.0>=1.24 )
 if ( GST124_FOUND )
   message( STATUS "*** GStreamer >= 1.24: GST_124 will be defined" )
   set( GST_124 "1" CACHE STRING "define GST_124" )
+  add_definitions( -DGST_124 )
 endif()
 
 add_library( renderers

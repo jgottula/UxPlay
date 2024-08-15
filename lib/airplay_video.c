@@ -37,39 +37,6 @@ struct airplay_video_s {
     unsigned short airplay_port;
 };
 
-int set_playback_info_item(airplay_video_t *airplay_video, const char *item, int num, float *val) {
-    playback_info_t *playback_info = airplay_video->playback_info;
-    return 0;
-    if (strstr(item, "duration")) {
-        playback_info->duration = *val;
-    } else if (strstr(item, "position")) {
-        playback_info->position = *val;
-    } else if (strstr(item, "rate")) {
-        playback_info->rate = *val;
-    } else if (strstr(item, "readyToPlay")) {
-      playback_info->ready_to_play  = !!num;
-    } else if (strstr(item, "playbackBufferEmpty")) {
-        playback_info->playback_buffer_empty  = !!num;
-    } else if (strstr(item, "playbackBufferFull")) {
-        playback_info->playback_buffer_full  = !!num;
-    } else if (strstr(item, "playbackLikelyToKeepUp")) {
-        playback_info->playback_likely_to_keep_up  = !!num;
-    } else if (strstr(item, "loadedTimeRanges")) {
-        if (num < 0 || num > MAX_TIME_RANGES) {
-	    return -1;
-        }
-        playback_info->num_loaded_time_ranges = num;
-    } else if (strstr(item, "seekableTimeRanges")) {
-        if (num < 0 || num > MAX_TIME_RANGES) {
-	    return -1;
-        }
-        playback_info->num_seekable_time_ranges  = num;
-    } else {
-        return -1;    
-    }
-    return 0;
-}
-
 //  initialize airplay_video service.
 airplay_video_t *airplay_video_service_init(void *conn_opaque, raop_t *raop, unsigned short http_port,
                                             const char *session_id) {

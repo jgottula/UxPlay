@@ -1812,8 +1812,15 @@ extern "C" void on_video_scrub(void *cls, const float position) {
     LOGI("on_video_scrub: position = %7.5f\n", position);
 }
 
-extern "C" void on_video_rate(void *cls, const float value) {
-    LOGI("on_video_rate = %7.5f\n", value);
+extern "C" void on_video_rate(void *cls, const float rate) {
+    LOGI("on_video_rate = %7.5f\n", rate);
+    if (rate == 1.0f) {
+        video_renderer_resume();
+    } else if (rate ==  0.0f) {
+        video_renderer_pause();
+    } else  {
+        LOGI("on_video_rate: ignoring unexpected value rate = %f\n", rate);
+    }
 }
 
 extern "C" void on_video_stop(void *cls) {
@@ -1822,11 +1829,10 @@ extern "C" void on_video_stop(void *cls) {
 
 extern "C" void on_video_acquire_playback_info (void *cls, playback_info_t *playback_info) {
     LOGI("on_video_acquire_playback info %p\n", playback_info);
-    /* values used in apsdk-public demo */
-    playback_info->duration =  32 ;
-    playback_info->position =  18 ;
-    playback_info->rate =  1;
-    playback_info->ready_to_play = 1 ;
+    int buffering_level = video_get_playback_info(&playback_info->duration, &playback_info->position, &playback_info->rate);
+    playback_info->playback_buffer_empty = (buffering_level == 0);
+    playback_info->playback_buffer_full = (buffering_level == 100);
+    printf("duration = %f, position = %f\n", playback_info->duration, playback_info->position);
 }
 
 extern "C" void log_callback (void *cls, int level, const char *msg) {
