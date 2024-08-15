@@ -391,7 +391,7 @@ conn_request(void *ptr, http_request_t *request, http_response_t **response) {
                 handler = &http_handler_play;
             } else if (!strncmp (url, "/getProperty?", strlen("/getProperty?"))) {
                 handler = &http_handler_get_property;
-            } else if (!strcmp(url, "/scrub")) {
+            } else if (!strncmp(url, "/scrub?", strlen("/scrub?"))) {
                 handler = &http_handler_scrub;
             } else if (!strncmp(url, "/rate?", strlen("/rate?"))) {
                 handler = &http_handler_rate;
