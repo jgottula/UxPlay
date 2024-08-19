@@ -156,7 +156,7 @@ GstElement *make_video_sink(const char *videosink) {
     /* OK in Windows with MSYS2  (POSIX); use strtok_s for MSVC */
     token = strtok_r(videosink_cpy, " ", &saveptr);
     video_sink = gst_element_factory_make(token, "videosink");
-    g_print("playbin_videosink: %s\n", token);
+    g_print("playbin_videosink: \"%s\"\n", token);
     if (!video_sink) {
         return NULL;
     }
@@ -172,8 +172,9 @@ GstElement *make_video_sink(const char *videosink) {
             *pval = '\0';
             pval++;
             const gchar *property_name = (const gchar *) token;
-	    g_print("playbin_videosink: %s %s\n", token, pval);
-	    g_object_set(G_OBJECT (video_sink), property_name, pval, NULL);
+            const gchar *value = (const gchar *) pval;
+	    g_print("playbin_videosink property: \"%s\" \"%s\"\n", property_name, value);
+	    gst_util_set_object_arg(G_OBJECT (video_sink), property_name, value);
         }
     }
     free(videosink_cpy);
