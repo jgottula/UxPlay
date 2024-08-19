@@ -241,6 +241,17 @@ http_handler_playback_info(raop_conn_t *conn, http_request_t *request, http_resp
     playback_info.playback_likely_to_keep_up = true;
 
     conn->raop->callbacks.on_video_acquire_playback_info(conn->raop->callbacks.cls, &playback_info);
+    if (playback_info.duration == -1.0) {
+        /* video has finished, reset */
+	logger_log(conn->raop->logger, LOGGER_DEBUG, "playback_info not available (finishing)");
+	//httpd_remove_known_connections(conn->raop->httpd);
+	http_response_set_disconnect(response,1);
+	conn->raop->callbacks.video_reset(conn->raop->callbacks.cls);
+	return;
+    } else if (playback_info.position == -1.0) {
+        logger_log(conn->raop->logger, LOGGER_DEBUG, "playback_info not available");
+        return;
+    }      
     time_range[0] = playback_info.duration;
     time_range[1] = 0;
 

@@ -156,7 +156,7 @@ GstElement *make_video_sink(const char *videosink) {
     /* OK in Windows with MSYS2  (POSIX); use strtok_s for MSVC */
     token = strtok_r(videosink_cpy, " ", &saveptr);
     video_sink = gst_element_factory_make(token, "videosink");
-    printf("playbin_videosink: %s\n", token);
+    g_print("playbin_videosink: %s\n", token);
     if (!video_sink) {
         return NULL;
     }
@@ -172,7 +172,7 @@ GstElement *make_video_sink(const char *videosink) {
             *pval = '\0';
             pval++;
             const gchar *property_name = (const gchar *) token;
-	    printf("playbin_videosink: %s %s\n", token, pval);
+	    g_print("playbin_videosink: %s %s\n", token, pval);
 	    g_object_set(G_OBJECT (video_sink), property_name, pval, NULL);
         }
     }
@@ -186,7 +186,7 @@ void  video_renderer_init(logger_t *render_logger, const char *server_name, vide
     GError *error = NULL;
     GstCaps *caps = NULL;
 #ifdef GST_124
-    playbin3 = true;
+    playbin3 = false;
 #else
     playbin3 = false;
 #endif
@@ -258,6 +258,7 @@ void  video_renderer_init(logger_t *render_logger, const char *server_name, vide
             logger_log(logger, LOGGER_DEBUG, "********************************************GStreamer HLS video pipeline will use playbin");
         }
         g_assert(renderer->pipeline);
+	renderer->appsrc = NULL;
         /* if we are not using autovideosink, build a videossink based on the stricng "videosink" */
         if(strcmp(videosink, "autovideosink")) {
             GstElement *playbin_videosink = make_video_sink(videosink);
@@ -430,7 +431,7 @@ void video_renderer_destroy() {
             gst_element_set_state (renderer->pipeline, GST_STATE_NULL);
         }
         gst_object_unref(renderer->bus);
-	if (!hls_video) {
+	if (renderer->appsrc) {
             gst_object_unref (renderer->appsrc);
         }
         gst_object_unref (renderer->pipeline);
@@ -445,14 +446,16 @@ void video_renderer_destroy() {
     }
 }
 
-
-/* not implemented for gstreamer */
-void video_renderer_update_background(int type) {
-}
-
 gboolean gstreamer_pipeline_bus_callback(GstBus *bus, GstMessage *message, gpointer loop) {
     if (logger_debug) {
-        printf("GStreamer bus message %s: %s\n", GST_MESSAGE_SRC_NAME(message), GST_MESSAGE_TYPE_NAME(message));
+        if (!hls_video) {
+	    g_print("GStreamer bus message %s %s\n", GST_MESSAGE_SRC_NAME(message), GST_MESSAGE_TYPE_NAME(message));
+        } else {
+            gint64 pos;
+            gst_element_query_position (renderer->pipeline, GST_FORMAT_TIME, &pos);
+            g_print("GStreamer bus message %s %s; position: %" GST_TIME_FORMAT "\n", GST_MESSAGE_SRC_NAME(message),
+	       GST_MESSAGE_TYPE_NAME(message), GST_TIME_ARGS(pos));
+	}
     }
     switch (GST_MESSAGE_TYPE (message)) {
     case GST_MESSAGE_DURATION:
@@ -464,7 +467,7 @@ gboolean gstreamer_pipeline_bus_callback(GstBus *bus, GstMessage *message, gpoin
             gst_message_parse_buffering(message, &percent);
 	    if (percent >= 0) {
                 renderer->buffering_level = percent;
-                g_print ("Buffering :%u percent done\n", percent);
+                logger_log(logger, LOGGER_DEBUG, "Buffering :%u percent done", percent);
                 if (percent < 100) {
                     gst_element_set_state (renderer->pipeline, GST_STATE_PAUSED);
                 } else {
@@ -478,8 +481,8 @@ gboolean gstreamer_pipeline_bus_callback(GstBus *bus, GstMessage *message, gpoin
         gchar *debug;
         gboolean flushing;
         gst_message_parse_error (message, &err, &debug);
-        logger_log(logger, LOGGER_INFO, "GStreamer error: %s", err->message);
-        if (strstr(err->message,"Internal data stream error")) {
+        logger_log(logger, LOGGER_INFO, "GStreamer error: %s %s", GST_MESSAGE_SRC_NAME(message),err->message);
+        if (!hls_video && strstr(err->message,"Internal data stream error")) {
             logger_log(logger, LOGGER_INFO,
                      "*** This is a generic GStreamer error that usually means that GStreamer\n"
                      "*** was unable to construct a working video pipeline.\n\n"
@@ -491,7 +494,9 @@ gboolean gstreamer_pipeline_bus_callback(GstBus *bus, GstMessage *message, gpoin
         }
 	g_error_free (err);
         g_free (debug);
-        gst_app_src_end_of_stream (GST_APP_SRC(renderer->appsrc));
+	if (renderer->appsrc) {
+            gst_app_src_end_of_stream (GST_APP_SRC(renderer->appsrc));
+	}
 	flushing = TRUE;
         gst_bus_set_flushing(bus, flushing);
  	gst_element_set_state (renderer->pipeline, GST_STATE_NULL);
@@ -501,12 +506,9 @@ gboolean gstreamer_pipeline_bus_callback(GstBus *bus, GstMessage *message, gpoin
     case GST_MESSAGE_EOS:
       /* end-of-stream */
         logger_log(logger, LOGGER_INFO, "GStreamer: End-Of-Stream");
-	if (hls_video) {
-	  printf("****************HLS reached end-of-stream (EOS): what should we do now? ******************************\n");
-	}
         break;
     //case GST_MESSAGE_DURATION:
-      	//printf("bus message (hls/playbin): %s\n", GST_MESSAGE_TYPE_NAME(message));
+      	//g_print("bus message (hls/playbin): %s\n", GST_MESSAGE_TYPE_NAME(message));
         /* The duration has changed, mark the current one as invalid */
         //renderer->duration = GST_CLOCK_TIME_NONE;
         //break;
@@ -572,47 +574,44 @@ unsigned int video_renderer_listen(void *loop) {
                                             gstreamer_pipeline_bus_callback, (gpointer) loop);    
 }
 
-int video_get_playback_info(double *duration, float *position, float *rate) {
-    gint64 pos, dur;
+bool video_get_playback_info(double *duration, float *position, float *rate, int *buffering_level) {
+    gint64 pos = 0;
     GstState state;
     
     *duration = 0.0;
-    *position = 0.0;
-    printf("************* video_get_playback_info **************\n");
+    *position = -1.0;
     gst_element_get_state(renderer->pipeline, &state, NULL, 0);
     *rate = 0.0f;
     switch (state) {
     case GST_STATE_PLAYING:
-        printf("state: GST_STATE_PLAYING\n");
         *rate = 1.0f;
-        break;
-    case GST_STATE_PAUSED:
-        printf("state: GST_STATE_PAUSED\n");
-        break;
-    case GST_STATE_READY:
-        printf("state: GST_STATE_READY\n");
-        break;
-    case GST_STATE_NULL:
-        printf("state: GST_STATE_NULL\n");
-        break;
     default:
-      printf("state: GST_STATE_? unknown\n");
-      break;
+        break;
     }
 
-    if (gst_element_query_duration (renderer->pipeline, GST_FORMAT_TIME, &dur) &&
-                                    GST_CLOCK_TIME_IS_VALID(dur)) {
-        renderer->duration = dur;
-        *duration = ((double) dur) / GST_SECOND;
-    } else {
-        renderer->duration = GST_CLOCK_TIME_NONE;
-    }
-
-    if (*duration) {
-        if (gst_element_query_position (renderer->pipeline, GST_FORMAT_TIME, &pos) &&
-                                    GST_CLOCK_TIME_IS_VALID(pos)) {
-	    *position = ((float) pos) / ((float) dur);
+    if (!GST_CLOCK_TIME_IS_VALID(renderer->duration)) {
+        if (!gst_element_query_duration (renderer->pipeline, GST_FORMAT_TIME, &renderer->duration)) {
+            return true;
         }
     }
-    return (int) renderer->buffering_level;
+    *duration = ((double) renderer->duration) / GST_SECOND;
+    if (*duration) {
+        if (gst_element_query_position (renderer->pipeline, GST_FORMAT_TIME, &pos) &&
+                                        GST_CLOCK_TIME_IS_VALID(pos)) {
+            *position = ((float) pos) / ((float) renderer->duration);
+            /* use pos > renderer->duration > 0 as a test to see if video has finished
+            * video_get_playback_info is called at one-second intervals while HLS video is playing */  
+            if (pos > renderer->duration) {
+	        video_renderer_pause();
+                gst_bus_set_flushing(renderer->bus, TRUE);
+		video_renderer_destroy();
+		g_print("video renderer destroyed\n");
+                return false;
+            }
+        }
+    }
+    logger_log(logger, LOGGER_DEBUG, "********* video_get_playback_info: position %" GST_TIME_FORMAT " duration %" GST_TIME_FORMAT " %s *********",
+               GST_TIME_ARGS (pos), GST_TIME_ARGS (renderer->duration), gst_element_state_get_name(state));
+
+    return true;
 }

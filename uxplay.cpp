@@ -143,6 +143,7 @@ static double db_high = 0.0;
 static bool taper_volume = false;
 static std::string url = "";
 static guint gst_x11_window_id = 0;
+static bool preserve_connections = false;
 
 /* logging */
 
@@ -1470,6 +1471,8 @@ static bool check_blocked_client(char *deviceid) {
 // Server callbacks
 
 extern "C" void video_reset(void *cls) {
+    LOGD("video_reset");
+    url.erase();
     reset_loop = true;
     remote_clock_offset = 0;
     relaunch_video = true;
@@ -1804,8 +1807,8 @@ extern "C" void on_video_play(void *cls, const char* location, const float start
     url.append(location);
     reset_loop = true;
     relaunch_video = true;
-  
-    printf("on_video_play: location = %s\n", url.c_str());
+    preserve_connections = true;
+    LOGD("on_video_play: location = %s", url.c_str());
 }
 
 extern "C" void on_video_scrub(void *cls, const float position) {
@@ -1828,11 +1831,21 @@ extern "C" void on_video_stop(void *cls) {
 }
 
 extern "C" void on_video_acquire_playback_info (void *cls, playback_info_t *playback_info) {
-    LOGI("on_video_acquire_playback info %p\n", playback_info);
-    int buffering_level = video_get_playback_info(&playback_info->duration, &playback_info->position, &playback_info->rate);
-    playback_info->playback_buffer_empty = (buffering_level == 0);
-    playback_info->playback_buffer_full = (buffering_level == 100);
-    printf("duration = %f, position = %f\n", playback_info->duration, playback_info->position);
+    int buffering_level;
+    LOGD("on_video_acquire_playback info\n");
+    bool still_playing = video_get_playback_info(&playback_info->duration, &playback_info->position,
+                                                &playback_info->rate, &buffering_level);
+    if (still_playing) {
+        playback_info->playback_buffer_empty = (buffering_level == 0);
+        playback_info->playback_buffer_full = (buffering_level == 100);
+    } else {
+        LOGI(" video has finished, %f", playback_info->position);
+        playback_info->position = -1.0;
+        playback_info->duration = -1.0;
+	printf("about to stop\n");
+	video_renderer_stop();
+	printf("stopped\n");
+    }
 }
 
 extern "C" void log_callback (void *cls, int level, const char *msg) {
@@ -2106,9 +2119,9 @@ int main (int argc, char *argv[]) {
 
     if (videosink == "d3d11videosink"  && use_video) {
         if (fullscreen) {
-            videosink.append(" fullscreen-toggle-mode=property fullscreen=true");
+            videosink.append(" fullscreen-toggle-mode=GST_D3D11_WINDOW_FULLSCREEN_TOGGLE_MODE_PROPERTY fullscreen=true ");
         } else {
-            videosink.append(" fullscreen-toggle-mode=alt-enter");
+            videosink.append(" fullscreen-toggle-mode=GST_D3D11_WINDOW_FULLSCREEN_TOGGLE_MODE_ALT_ENTER ");
         }
         LOGI("d3d11videosink is being used with option fullscreen-toggle-mode=alt-enter\n"
                "Use Alt-Enter key combination to toggle into/out of full-screen mode");
@@ -2234,7 +2247,9 @@ int main (int argc, char *argv[]) {
     main_loop();
     if (relaunch_video || reset_loop) {
         if(reset_loop) {
+	  printf("reset_loop\n");
             reset_loop = false;
+	    
         } else {
             raop_stop(raop);
         }
@@ -2242,6 +2257,10 @@ int main (int argc, char *argv[]) {
         if (use_video && close_window) {
 	  //video_renderer_stop();
             video_renderer_destroy();
+            if (!preserve_connections) {
+	        raop_remove_known_connections(raop);
+                preserve_connections = false;
+            }
 	    const char *uri = (url.empty() ? NULL : url.c_str());
             video_renderer_init(render_logger, server_name.c_str(), videoflip, video_parser.c_str(),
                                 video_decoder.c_str(), video_converter.c_str(), videosink.c_str(), &fullscreen,

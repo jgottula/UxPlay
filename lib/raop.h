@@ -116,7 +116,8 @@ RAOP_API void raop_set_dnssd(raop_t *raop, dnssd_t *dnssd);
 RAOP_API void raop_destroy(raop_t *raop);
 RAOP_API void *get_media_data_store(raop_t *raop);
 RAOP_API void set_media_data_store(raop_t *raop, void *media_data_store);
-  
+RAOP_API void raop_remove_known_connections(raop_t * raop);
+
 #ifdef __cplusplus
 }
 #endif

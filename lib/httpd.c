@@ -19,6 +19,8 @@
 #include <string.h>
 #include <stdio.h>
 #include <assert.h>
+#include <stdbool.h>
+#include <errno.h>
 
 #include "httpd.h"
 #include "netutils.h"
@@ -290,6 +292,7 @@ httpd_nohold(httpd_t *httpd) {
 void
 httpd_remove_known_connections(httpd_t *httpd) {
     for (int i = 0; i < httpd->max_connections; i++) {
+
         http_connection_t *connection = &httpd->connections[i];
         if (!connection->connected || connection->type == CONNECTION_TYPE_UNKNOWN) {
             continue;
@@ -402,7 +405,8 @@ httpd_thread(void *arg)
                 if (connection->type == CONNECTION_TYPE_PTTH) {
                     http_request_is_reverse(connection->request);
                 }
-		printf("new request, connection %d, socket %d type %s\n", i, connection->socket_fd, typename [connection->type]);
+		logger_log(httpd->logger, LOGGER_DEBUG, "new request, connection %d, socket %d type %s",
+                           i, connection->socket_fd, typename [connection->type]);
             } else {
                 new_request = 0;
 	    }
@@ -437,11 +441,20 @@ httpd_thread(void *arg)
                     if (ret == 0) {
                         logger_log(httpd->logger, LOGGER_INFO, "Connection closed for socket %d",
                                    connection->socket_fd);
-                        httpd_remove_connection(httpd, connection);
-                        continue;
+                        break;
+                    } else if (ret == -1) {
+		      if (errno == EAGAIN) {
+			continue;
+		      } else {
+                        int sock_err = SOCKET_GET_ERROR();
+                        logger_log(httpd->logger, LOGGER_ERR, "httpd: recv socket error %d:%s",
+                                   sock_err, strerror(sock_err));
+                        break;
+		      }
+                    } else {
+                        readstart += ret;
+                        ret = readstart;
                     }
-                    readstart += ret;
-                    ret = readstart;
                 }
                 if (!memcmp(buffer, http, 8)) {
                     http_request_set_reverse(connection->request);  
