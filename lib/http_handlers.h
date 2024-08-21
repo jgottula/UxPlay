@@ -268,6 +268,17 @@ http_handler_set_property(raop_conn_t *conn,
     const char *property = url + strlen("/setProperty?");
     logger_log(conn->raop->logger, LOGGER_DEBUG, "http_handler_set_property: %s", property);
 
+    /*  actionAtItemEnd:  values:  
+                  0: advance (advance to next item, if there is one)
+                  1: pause   (pause playing)
+                  2: none    (do nothing)             
+
+        reverseEndTime   (only used when rate < 0) time at which reverse playback ends
+        forwardEndTime   (only used when rate > 0) time at which reverse playback ends
+
+    */
+
+
     if (!strcmp(property, "reverseEndTime") ||
         !strcmp(property, "forwardEndTime") ||
         !strcmp(property, "actionAtItemEnd")) {
