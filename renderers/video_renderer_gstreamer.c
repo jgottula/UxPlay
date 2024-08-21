@@ -50,7 +50,7 @@ static bool playbin3;
 struct video_renderer_s {
     GstElement *appsrc, *pipeline;
     GstBus *bus;
-    gboolean playing, terminate, seek_enabled, seek_done;
+  // gboolean playing, terminate, seek_enabled, seek_done;
     gint64 duration;
     gint buffering_level;
 #ifdef  X_DISPLAY_FIX
@@ -211,6 +211,7 @@ void  video_renderer_init(logger_t *render_logger, const char *server_name, vide
     g_assert(renderer);
     renderer->duration = GST_CLOCK_TIME_NONE;
     renderer->buffering_level = 0;
+    //renderer->terminate = FALSE;
 
     if (!uri) {
         hls_video  = false;
@@ -454,8 +455,13 @@ gboolean gstreamer_pipeline_bus_callback(GstBus *bus, GstMessage *message, gpoin
         } else {
             gint64 pos;
             gst_element_query_position (renderer->pipeline, GST_FORMAT_TIME, &pos);
-            g_print("GStreamer bus message %s %s; position: %" GST_TIME_FORMAT "\n", GST_MESSAGE_SRC_NAME(message),
-	       GST_MESSAGE_TYPE_NAME(message), GST_TIME_ARGS(pos));
+	    if (GST_CLOCK_TIME_IS_VALID(pos)) {
+                g_print("GStreamer bus message %s %s; position: %" GST_TIME_FORMAT "\n", GST_MESSAGE_SRC_NAME(message),
+                GST_MESSAGE_TYPE_NAME(message), GST_TIME_ARGS(pos));
+	    } else {
+                g_print("GStreamer bus message %s %s; position: none: %" GST_TIME_FORMAT "\n", GST_MESSAGE_SRC_NAME(message),
+                        GST_MESSAGE_TYPE_NAME(message));
+           }
 	}
     }
     switch (GST_MESSAGE_TYPE (message)) {
@@ -498,10 +504,10 @@ gboolean gstreamer_pipeline_bus_callback(GstBus *bus, GstMessage *message, gpoin
 	if (renderer->appsrc) {
             gst_app_src_end_of_stream (GST_APP_SRC(renderer->appsrc));
 	}
-	flushing = TRUE;
-        gst_bus_set_flushing(bus, flushing);
- 	gst_element_set_state (renderer->pipeline, GST_STATE_NULL);
-	g_main_loop_quit( (GMainLoop *) loop);
+
+        gst_bus_set_flushing(renderer->bus, TRUE);
+        gst_element_set_state (renderer->pipeline, GST_STATE_NULL);
+        g_main_loop_quit( (GMainLoop *) loop);
         break;
     }
     case GST_MESSAGE_EOS:
@@ -575,6 +581,23 @@ unsigned int video_renderer_listen(void *loop) {
                                             gstreamer_pipeline_bus_callback, (gpointer) loop);    
 }
 
+bool video_check_position() {
+    if (renderer && renderer->duration > 0) {
+        gint64 pos = 0;
+        gst_element_query_position (renderer->pipeline, GST_FORMAT_TIME, &pos);
+        /* use pos > renderer->duration > 0 as a test to see if video has finished
+        * video_check_position  is called repeatedly  while HLS video is playing */
+        if (pos > renderer->duration) {
+            video_renderer_pause();
+            gst_bus_set_flushing(renderer->bus, TRUE);
+            g_print("media streaming is complete (duration %" GST_TIME_FORMAT "): terminating HLS session\n",
+                    GST_TIME_ARGS(renderer->duration));
+            return false;
+        }
+    }
+    return true;
+}
+  
 bool video_get_playback_info(double *duration, float *position, float *rate, int *buffering_level) {
     gint64 pos = 0;
     GstState state;
@@ -600,17 +623,9 @@ bool video_get_playback_info(double *duration, float *position, float *rate, int
         if (gst_element_query_position (renderer->pipeline, GST_FORMAT_TIME, &pos) &&
                                         GST_CLOCK_TIME_IS_VALID(pos)) {
             *position = ((float) pos) / ((float) renderer->duration);
-            /* use pos > renderer->duration > 0 as a test to see if video has finished
-            * video_get_playback_info is called at one-second intervals while HLS video is playing */  
-            if (pos > renderer->duration) {
-	        video_renderer_pause();
-                gst_bus_set_flushing(renderer->bus, TRUE);
-		video_renderer_destroy();
-		g_print("video renderer destroyed\n");
-                return false;
-            }
         }
     }
+
     logger_log(logger, LOGGER_DEBUG, "********* video_get_playback_info: position %" GST_TIME_FORMAT " duration %" GST_TIME_FORMAT " %s *********",
                GST_TIME_ARGS (pos), GST_TIME_ARGS (renderer->duration), gst_element_state_get_name(state));
 
