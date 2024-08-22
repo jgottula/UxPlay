@@ -459,7 +459,7 @@ gboolean gstreamer_pipeline_bus_callback(GstBus *bus, GstMessage *message, gpoin
                 g_print("GStreamer bus message %s %s; position: %" GST_TIME_FORMAT "\n", GST_MESSAGE_SRC_NAME(message),
                 GST_MESSAGE_TYPE_NAME(message), GST_TIME_ARGS(pos));
 	    } else {
-                g_print("GStreamer bus message %s %s; position: none: %" GST_TIME_FORMAT "\n", GST_MESSAGE_SRC_NAME(message),
+                g_print("GStreamer bus message %s %s; position: none\n", GST_MESSAGE_SRC_NAME(message),
                         GST_MESSAGE_TYPE_NAME(message));
            }
 	}
