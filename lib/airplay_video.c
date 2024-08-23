@@ -31,6 +31,7 @@ struct airplay_video_s {
     void *conn_opaque;
     char apple_session_id[37];
     char playback_uuid[37];
+    char local_uri_prefix[23];
     float start_position_seconds;
     playback_info_t *playback_info;
     // The local port of the airplay server on the AirPlay server
@@ -41,11 +42,21 @@ struct airplay_video_s {
 airplay_video_t *airplay_video_service_init(void *conn_opaque, raop_t *raop, unsigned short http_port,
                                             const char *session_id) {
     void *media_data_store = NULL;
+    char uri[] = "http://localhost:xxxxx";
     assert(conn_opaque);
     assert(raop);
     airplay_video_t *airplay_video =  (airplay_video_t *) calloc(1, sizeof(airplay_video_t));
     if (!airplay_video) {
         return NULL;
+    }
+
+    /* create local_uri_prefix string */
+    strncpy(airplay_video->local_uri_prefix, uri, sizeof(airplay_video->local_uri_prefix));
+    char *ptr  = strstr(airplay_video->local_uri_prefix, "xxxxx");
+    snprintf(ptr, 6, "%-5u", http_port);
+    ptr = strstr(airplay_video->local_uri_prefix, " ");
+    if (ptr) {
+      *ptr = '\0';
     }
     
     /* destroy any existing media_data_store and create a new instance*/
