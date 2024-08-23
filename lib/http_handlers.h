@@ -102,6 +102,7 @@ static void
 http_handler_scrub(raop_conn_t *conn, http_request_t *request, http_response_t *response,
                    char **response_data, int *response_datalen) {
     const char *url = http_request_get_url(request);
+    printf("**********************SCRUB %s ***********************\n", url);
     const char *data = strstr(url, "?");
     float scrub_position = 0.0f;
     if (data) {
@@ -497,6 +498,24 @@ http_handler_action(raop_conn_t *conn, http_request_t *request, http_response_t 
         printf("end FCUP Response data\n");
     }
 
+
+    float duration = 0.0f, next;
+    int count = 0;
+    char *ptr = strstr(fcup_response_data, "#EXTINF:");
+    while (ptr != NULL) {
+        char *end;
+        ptr += strlen("#EXTINF:");
+        next = strtof(ptr, &end);
+        duration += next;
+        count++;
+        ptr = strstr(end, "#EXTINF:");
+    }
+    if (count) {
+      printf("\n%s:\nplaylist has %5d chunks, total duration %9.3f secs\n", fcup_response_url, count, duration);
+    }
+
+
+    
     char *playback_location = process_media_data(media_data_store, fcup_response_url,
                                                  fcup_response_data, fcup_response_datalen);
 
