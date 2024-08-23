@@ -1836,6 +1836,7 @@ extern "C" void on_video_play(void *cls, const char* location, const float start
 
 extern "C" void on_video_scrub(void *cls, const float position) {
     LOGI("on_video_scrub: position = %7.5f\n", position);
+    video_renderer_seek(position);
 }
 
 extern "C" void on_video_rate(void *cls, const float rate) {

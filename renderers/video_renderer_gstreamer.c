@@ -449,7 +449,7 @@ void video_renderer_destroy() {
 }
 
 gboolean gstreamer_pipeline_bus_callback(GstBus *bus, GstMessage *message, gpointer loop) {
-    if (logger_debug) {
+    if (true || logger_debug) {
         if (!hls_video) {
 	    g_print("GStreamer bus message %s %s\n", GST_MESSAGE_SRC_NAME(message), GST_MESSAGE_TYPE_NAME(message));
         } else {
@@ -630,4 +630,22 @@ bool video_get_playback_info(double *duration, float *position, float *rate, int
                GST_TIME_ARGS (pos), GST_TIME_ARGS (renderer->duration), gst_element_state_get_name(state));
 
     return true;
+}
+
+void video_renderer_seek(float position) {
+  double pos = (double) position;
+  pos *=  GST_SECOND;
+  gint64 seek_position = (gint64) pos;
+  seek_position =  seek_position < 1000 ? 1000 : seek_position;
+  seek_position =  seek_position > renderer->duration  - 1000 ? renderer->duration - 1000: seek_position;
+  g_print( "SCRUB %f:  seek to %" GST_TIME_FORMAT ", duration = %" GST_TIME_FORMAT "\n",
+	   GST_TIME_ARGS(seek_position),  GST_TIME_ARGS(renderer->duration));
+  gboolean result = gst_element_seek_simple(renderer->pipeline, GST_FORMAT_TIME,
+                                            (GstSeekFlags)(GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_KEY_UNIT),
+					    seek_position);
+  if (result) {
+    g_print("seek succeeded\n");
+  }  else {
+    g_print("seek failed\n");
+  } 
 }
