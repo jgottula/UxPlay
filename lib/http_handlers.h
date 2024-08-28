@@ -89,14 +89,6 @@ http_handler_server_info(raop_conn_t *conn, http_request_t *request, http_respon
 }
 
 static void
-http_handler_get_property(raop_conn_t *conn, http_request_t *request, http_response_t *response,
-                          char **response_data, int *response_datalen) {
-    const char *url = http_request_get_url(request);
-    const char *property = url + strlen("getProperty?");
-    logger_log(conn->raop->logger, LOGGER_DEBUG, "http_handler_get_property: %s (unhandled)", property);
-}
-
-static void
 http_handler_scrub(raop_conn_t *conn, http_request_t *request, http_response_t *response,
                    char **response_data, int *response_datalen) {
     const char *url = http_request_get_url(request);
@@ -138,6 +130,62 @@ http_handler_rate(raop_conn_t *conn, http_request_t *request, http_response_t *r
 }
 
 static void
+http_handler_stop(raop_conn_t *conn, http_request_t *request, http_response_t *response,
+                  char **response_data, int *response_datalen) {
+    logger_log(conn->raop->logger, LOGGER_INFO, "client HTTP request POST stop");
+
+    conn->raop->callbacks.on_video_stop(conn->raop->callbacks.cls);
+}
+
+/* handles PUT /setProperty http requests from Client to Server */
+
+static void
+http_handler_set_property(raop_conn_t *conn,
+                          http_request_t *request, http_response_t *response,
+			  char **response_data, int *response_datalen) {
+
+    const char *url = http_request_get_url(request);
+    const char *property = url + strlen("/setProperty?");
+    logger_log(conn->raop->logger, LOGGER_DEBUG, "http_handler_set_property: %s", property);
+
+    /*  actionAtItemEnd:  values:  
+                  0: advance (advance to next item, if there is one)
+                  1: pause   (pause playing)
+                  2: none    (do nothing)             
+
+        reverseEndTime   (only used when rate < 0) time at which reverse playback ends
+        forwardEndTime   (only used when rate > 0) time at which reverse playback ends
+    */
+
+    if (!strcmp(property, "reverseEndTime") ||
+        !strcmp(property, "forwardEndTime") ||
+        !strcmp(property, "actionAtItemEnd")) {
+        logger_log(conn->raop->logger, LOGGER_DEBUG, "property %s is known but unhandled", property);
+
+        plist_t errResponse = plist_new_dict();
+        plist_t errCode = plist_new_uint(0);
+        plist_dict_set_item(errResponse, "errorCode", errCode);
+        plist_to_xml(errResponse, response_data, (uint32_t *) response_datalen);
+        plist_free(errResponse);
+        http_response_add_header(response, "Content-Type", "text/x-apple-plist+xml");
+    } else {
+        logger_log(conn->raop->logger, LOGGER_DEBUG, "property %s is unknown, unhandled", property);      
+        http_response_add_header(response, "Content-Length", "0");
+    }
+}
+
+/* handles GET /getProperty http requests from Client to Server.  (not implemented) */
+
+static void
+http_handler_get_property(raop_conn_t *conn, http_request_t *request, http_response_t *response,
+                          char **response_data, int *response_datalen) {
+    const char *url = http_request_get_url(request);
+    const char *property = url + strlen("getProperty?");
+    logger_log(conn->raop->logger, LOGGER_DEBUG, "http_handler_get_property: %s (unhandled)", property);
+}
+
+/* this request (for a variant FairPlay decryption)  cannot be handled  by UxPlay */
+static void
 http_handler_fpsetup2(raop_conn_t *conn, http_request_t *request, http_response_t *response,
                       char **response_data, int *response_datalen) {
     logger_log(conn->raop->logger, LOGGER_WARNING, "client HTTP request POST fp-setup2 is unhandled");
@@ -149,7 +197,7 @@ http_handler_fpsetup2(raop_conn_t *conn, http_request_t *request, http_response_
     http_response_init(response, "HTTP/1.1", 421, "Misdirected Request");
 }
 
-// called by http_handler_playback_info to respond to a GET /playback_info request from the client.
+// called by http_handler_playback_info while preparing response to a GET /playback_info request from the client.
 
 void time_range_to_plist(void *time_ranges, const int n_time_ranges,
 		         plist_t time_ranges_node) {
@@ -171,6 +219,8 @@ void time_range_to_plist(void *time_ranges, const int n_time_ranges,
         plist_array_append_item(time_ranges_node, time_range_node);
     }
 }
+
+// called by http_handler_playback_info while preparing response to a GET /playback_info request from the client.
 
 int create_playback_info_plist_xml(playback_info_t *playback_info, char **plist_xml) {
 
@@ -217,6 +267,12 @@ int create_playback_info_plist_xml(playback_info_t *playback_info, char **plist_
     return len;
 }
 
+
+/* this handles requests from the Client  for "Playback information" while the Media is playing on the 
+   Media Player.  (The Server gets this information by monitoring the Media Player). The Client could use 
+   the information to e.g. update  the slider it shows with progress to the player (0%-100%). 
+   It does not affect playing of the Media*/
+
 static void
 http_handler_playback_info(raop_conn_t *conn, http_request_t *request, http_response_t *response,
                            char **response_data, int *response_datalen)
@@ -256,40 +312,14 @@ http_handler_playback_info(raop_conn_t *conn, http_request_t *request, http_resp
     http_response_add_header(response, "Content-Type", "text/x-apple-plist+xml");
 }
 
-static void
-http_handler_set_property(raop_conn_t *conn,
-                          http_request_t *request, http_response_t *response,
-			  char **response_data, int *response_datalen) {
+/* this handles the POST /reverse request from Client to Server on a AirPlay http channel to "Upgrade" 
+   to "PTTH/1.0" Reverse HTTP protocol proposed in 2009 Internet-Draft 
 
-    const char *url = http_request_get_url(request);
-    const char *property = url + strlen("/setProperty?");
-    logger_log(conn->raop->logger, LOGGER_DEBUG, "http_handler_set_property: %s", property);
+          https://datatracker.ietf.org/doc/id/draft-lentczner-rhttp-00.txt .  
 
-    /*  actionAtItemEnd:  values:  
-                  0: advance (advance to next item, if there is one)
-                  1: pause   (pause playing)
-                  2: none    (do nothing)             
-
-        reverseEndTime   (only used when rate < 0) time at which reverse playback ends
-        forwardEndTime   (only used when rate > 0) time at which reverse playback ends
-    */
-
-    if (!strcmp(property, "reverseEndTime") ||
-        !strcmp(property, "forwardEndTime") ||
-        !strcmp(property, "actionAtItemEnd")) {
-        logger_log(conn->raop->logger, LOGGER_DEBUG, "property %s is known but unhandled", property);
-
-        plist_t errResponse = plist_new_dict();
-        plist_t errCode = plist_new_uint(0);
-        plist_dict_set_item(errResponse, "errorCode", errCode);
-        plist_to_xml(errResponse, response_data, (uint32_t *) response_datalen);
-        plist_free(errResponse);
-        http_response_add_header(response, "Content-Type", "text/x-apple-plist+xml");
-    } else {
-        logger_log(conn->raop->logger, LOGGER_DEBUG, "property %s is unknown, unhandled", property);      
-        http_response_add_header(response, "Content-Length", "0");
-    }
-}
+   After the Upgrade the channel becomes a reverse http "AirPlay (reversed)" channel for
+   http requests from Server to Client.
+  */
 
 static void
 http_handler_reverse(raop_conn_t *conn, http_request_t *request, http_response_t *response,
@@ -322,18 +352,12 @@ http_handler_reverse(raop_conn_t *conn, http_request_t *request, http_response_t
     }    
 }
 
-
-static void
-http_handler_stop(raop_conn_t *conn, http_request_t *request, http_response_t *response,
-                  char **response_data, int *response_datalen) {
-    logger_log(conn->raop->logger, LOGGER_INFO, "client HTTP request POST stop");
-
-    conn->raop->callbacks.on_video_stop(conn->raop->callbacks.cls);
-}
+/* this copies a Media Playlist into a null-terminated string. If it has the "#YT-EXT-CONDENSED-URI"
+   header, it is also expanded into the full Media Playlist format */
 
 char *adjust_yt_condensed_playlist(const char *media_playlist) {
    /* expands a YT-EXT_CONDENSED-URL  media playlist into a full media playlist 
-    * returns a pointer to the expanded playlist, WHICH MUST BE FRRED AFTER USE */
+    * returns a pointer to the expanded playlist, WHICH MUST BE FREED AFTER USE */
 
     const char *base_uri_begin;
     const char *params_begin;
@@ -496,6 +520,8 @@ char *adjust_yt_condensed_playlist(const char *media_playlist) {
     return new_playlist;
 }
 
+/* this adjusts the uri prefixes in the Master Playlist, for sending to the Media Player running on the Server Host */
+
 char *adjust_master_playlist (char *fcup_response_data, int fcup_response_datalen, char *uri_prefix, char *uri_local_prefix) {
 
     size_t uri_prefix_len = strlen(uri_prefix);
@@ -534,6 +560,8 @@ char *adjust_master_playlist (char *fcup_response_data, int fcup_response_datale
     }
     return new_master;
 }
+
+/* this parses the Master Playlist to make a table of the Media Playlist uri's that it lists */
 
 int create_media_uri_table(const char *url_prefix, const char *master_playlist_data, int datalen,
 			    char ***media_uri_table, int *num_uri) {
@@ -581,7 +609,12 @@ int create_media_uri_table(const char *url_prefix, const char *master_playlist_d
     *media_uri_table = table;
     return 0;
 }
-			
+
+/* the POST /action request from Client to Server on the AirPlay http channel follows a POST /event "FCUP Request"
+ from Server to Client on the reverse http channel, for a HLS playlist (first the Master Playlist, then the Media Playlists
+ listed in the Master Playlist.     The POST /action request contains the playlist requested by the Server in
+ the preceding "FCUP Request".   The FCUP Request sequence  continues until all Media Playlists have been obtained by the Server */ 
+
 static void
 http_handler_action(raop_conn_t *conn, http_request_t *request, http_response_t *response,
                     char **response_data, int *response_datalen) {
@@ -606,7 +639,7 @@ http_handler_action(raop_conn_t *conn, http_request_t *request, http_response_t 
         goto post_action_error;
     }
 
-    /* verify that this reponse contains a binary plist*/
+    /* verify that this request contains a binary plist*/
     char *header_str = NULL;
     http_request_get_header_string(request, &header_str);
     logger_log(conn->raop->logger, LOGGER_DEBUG, "request header: %s", header_str);
@@ -803,6 +836,11 @@ http_handler_action(raop_conn_t *conn, http_request_t *request, http_response_t 
 
 }
 
+/* The POST /play request from the Client to Server on the AirPlay http channel contains (among other information)
+   the "Content Location" that specifies the HLS Playlists for the video to be streamed, as well as the video 
+   "start position in seconds".   Once this request is received by the Sever, the Server sends a POST /event
+   "FCUP Request" request to the Client on the reverse http channel, to request the HLS Master Playlist */
+
 static void
 http_handler_play(raop_conn_t *conn, http_request_t *request, http_response_t *response,
                       char **response_data, int *response_datalen) {
@@ -907,6 +945,14 @@ http_handler_play(raop_conn_t *conn, http_request_t *request, http_response_t *r
     logger_log(conn->raop->logger, LOGGER_ERR, "Could not find valid Plist Data for /play, Unhandled");
     http_response_init(response, "HTTP/1.1", 400, "Bad Request");
 }
+
+/* the HLS handler handles http requests GET /[uri] on the HLS channel from the media player to the Server, asking for
+   (adjusted) copies of Playlists: first the Master Playlist  (adjusted to change the uri prefix to
+   "http://localhost:[port]/.......m3u8"), then the Media Playlists that the media player wishes to use.  
+   If the client supplied Media playlists with the "YT-EXT-CONDENSED-URI" header, these must be adjusted into
+   the standard uncondensed form before sending with the response.    The uri in the request is  the uri for the
+   Media Playlist, taken from the Master Playlist, with the uri prefix removed.  
+*/ 
 
 static void
 http_handler_hls(raop_conn_t *conn,  http_request_t *request, http_response_t *response,
