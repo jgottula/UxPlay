@@ -74,8 +74,7 @@ struct raop_s {
      char pk_str[2*ED25519_KEY_SIZE + 1];
 
     /* place to store media_data_store */
-     void * media_data_store;
-  
+     airplay_video_t *airplay_video;
 };
 
 struct raop_conn_s {
@@ -105,23 +104,6 @@ typedef struct raop_conn_s raop_conn_t;
 
 #include "raop_handlers.h"
 #include "http_handlers.h"
-
-void media_data_store_destroy(void *media_data_store);
-
-void set_media_data_store(raop_t *raop, void *media_data_store) {
-    if (raop->media_data_store) {
-        media_data_store_destroy(raop->media_data_store);
-    }
-    if (media_data_store) {
-        raop->media_data_store  = media_data_store;
-    } else {
-        raop->media_data_store  = NULL;
-    }
-}
-
-void *get_media_data_store(raop_t *raop) {
-    return raop->media_data_store;
-}
 
 static void *
 conn_init(void *opaque, unsigned char *local, int locallen, unsigned char *remote, int remotelen, unsigned int zone_id) {
@@ -572,8 +554,6 @@ raop_init(raop_callbacks_t *callbacks) {
     raop->max_ntp_timeouts = 0;
     raop->audio_delay_micros = 250000;
 
-    raop->media_data_store = NULL;
-    
     return raop;
 }
 
@@ -629,9 +609,6 @@ void
 raop_destroy(raop_t *raop) {
     if (raop) {
         raop_stop(raop);
-       if (raop->media_data_store) {
-            media_data_store_destroy(raop->media_data_store);
-        }
         pairing_destroy(raop->pairing);
         httpd_destroy(raop->httpd);
         logger_destroy(raop->logger);
@@ -760,3 +737,24 @@ raop_stop(raop_t *raop) {
 void raop_remove_known_connections(raop_t * raop) {
     httpd_remove_known_connections(raop->httpd);
 }
+
+airplay_video_t *deregister_airplay_video(raop_t *raop) {
+    airplay_video_t *airplay_video = raop->airplay_video;
+    raop->airplay_video = NULL;
+    return airplay_video;
+}
+
+bool register_airplay_video(raop_t *raop, airplay_video_t *airplay_video) {
+  if (raop->airplay_video) {
+    return false;
+  }
+  raop->airplay_video = airplay_video;
+  return true;
+}
+
+
+airplay_video_t * get_airplay_video(raop_t *raop) {
+  return raop->airplay_video;
+}
+
+  

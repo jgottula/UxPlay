@@ -84,10 +84,8 @@ http_handler_server_info(raop_conn_t *conn, http_request_t *request, http_respon
     /* initialize the airplay video service */
     const char *session_id = http_request_get_header(request, "X-Apple-Session-ID");
 
-    conn->airplay_video =  (void *) airplay_video_service_init(conn, conn->raop, conn->raop->port, session_id);
+    airplay_video_service_init(conn->raop, conn->raop->port, session_id);
 
-    logger_log(conn->raop->logger, LOGGER_DEBUG, "media_data_store accessible at %p",
-               get_media_data_store(conn->raop));
 }
 
 static void
@@ -102,19 +100,18 @@ static void
 http_handler_scrub(raop_conn_t *conn, http_request_t *request, http_response_t *response,
                    char **response_data, int *response_datalen) {
     const char *url = http_request_get_url(request);
-    printf("**********************SCRUB %s ***********************\n", url);
     const char *data = strstr(url, "?");
     float scrub_position = 0.0f;
     if (data) {
         data++;
-	const char *position = strstr(data, "=") + 1;
-	char *end;
-	double value = strtod(position, &end);
-	if (end && end != position) {
-	  scrub_position = (float) value;
-	  logger_log(conn->raop->logger, LOGGER_DEBUG, "http_handler_scrub: got position = %.6f",
-                     scrub_position);	  
-	}
+        const char *position = strstr(data, "=") + 1;
+        char *end;
+        double value = strtod(position, &end);
+        if (end && end != position) {
+            scrub_position = (float) value;
+            logger_log(conn->raop->logger, LOGGER_DEBUG, "http_handler_scrub: got position = %.6f",
+                       scrub_position);	  
+        }
     }
     printf("**********************SCRUB %f ***********************\n",scrub_position);
     conn->raop->callbacks.on_video_scrub(conn->raop->callbacks.cls, scrub_position);
@@ -129,16 +126,15 @@ http_handler_rate(raop_conn_t *conn, http_request_t *request, http_response_t *r
     float rate_value = 0.0f;
     if (data) {
         data++;
-	const char *rate = strstr(data, "=") + 1;
-	char *end;
-	float value = strtof(rate, &end);
-	if (end && end != rate) {
-	  rate_value =  value;
-	  logger_log(conn->raop->logger, LOGGER_DEBUG, "http_handler_rate: got rate = %.6f", rate_value);	  
+        const char *rate = strstr(data, "=") + 1;
+        char *end;
+        float value = strtof(rate, &end);
+        if (end && end != rate) {
+            rate_value =  value;
+            logger_log(conn->raop->logger, LOGGER_DEBUG, "http_handler_rate: got rate = %.6f", rate_value);	  
 	}
     }
     conn->raop->callbacks.on_video_rate(conn->raop->callbacks.cls, rate_value);
-
 }
 
 static void
@@ -262,7 +258,7 @@ http_handler_playback_info(raop_conn_t *conn, http_request_t *request, http_resp
 
 static void
 http_handler_set_property(raop_conn_t *conn,
-                      http_request_t *request, http_response_t *response,
+                          http_request_t *request, http_response_t *response,
 			  char **response_data, int *response_datalen) {
 
     const char *url = http_request_get_url(request);
@@ -276,9 +272,7 @@ http_handler_set_property(raop_conn_t *conn,
 
         reverseEndTime   (only used when rate < 0) time at which reverse playback ends
         forwardEndTime   (only used when rate > 0) time at which reverse playback ends
-
     */
-
 
     if (!strcmp(property, "reverseEndTime") ||
         !strcmp(property, "forwardEndTime") ||
@@ -328,22 +322,266 @@ http_handler_reverse(raop_conn_t *conn, http_request_t *request, http_response_t
     }    
 }
 
-// handlers that use the media_data_store (c++ code)
 
 static void
 http_handler_stop(raop_conn_t *conn, http_request_t *request, http_response_t *response,
                   char **response_data, int *response_datalen) {
     logger_log(conn->raop->logger, LOGGER_INFO, "client HTTP request POST stop");
-    void *media_data_store = get_media_data_store(conn->raop);
 
-    if (media_data_store) {
-        media_data_store_reset(media_data_store);
-    } else {
-        logger_log(conn->raop->logger, LOGGER_DEBUG, "media_data_store not found");
-    }
     conn->raop->callbacks.on_video_stop(conn->raop->callbacks.cls);
 }
 
+char *adjust_yt_condensed_playlist(const char *media_playlist) {
+   /* expands a YT-EXT_CONDENSED-URL  media playlist into a full media playlist 
+    * returns a pointer to the expanded playlist, WHICH MUST BE FRRED AFTER USE */
+
+    const char *base_uri_begin;
+    const char *params_begin;
+    const char *prefix_begin;
+    size_t base_uri_len;
+    size_t params_len;
+    size_t prefix_len;
+    const char* ptr = strstr(media_playlist, "#EXTM3U\n");
+
+    ptr += strlen("#EXTM3U\n");
+    assert(ptr);
+    if (strncmp(ptr, "#YT-EXT-CONDENSED-URL", strlen("#YT-EXT-CONDENSED-URL"))) {
+        size_t len = strlen(media_playlist);
+        char * playlist_copy = (char *) malloc(len + 1);
+        memcpy(playlist_copy, media_playlist, len);
+        playlist_copy[len] = '\0';
+        return playlist_copy;
+    }
+    ptr = strstr(ptr, "BASE-URI=");
+    base_uri_begin = strchr(ptr, '"');
+    base_uri_begin++;
+    ptr = strchr(base_uri_begin, '"');
+    base_uri_len = ptr - base_uri_begin;
+    char *base_uri = (char *) calloc(base_uri_len + 1, sizeof(char));
+    assert(base_uri);
+    memcpy(base_uri, base_uri_begin, base_uri_len);  //must free
+
+    ptr = strstr(ptr, "PARAMS=");
+    params_begin = strchr(ptr, '"');
+    params_begin++;
+    ptr = strchr(params_begin,'"');
+    params_len = ptr - params_begin;
+    char *params = (char *) calloc(params_len + 1, sizeof(char));
+    assert(params);
+    memcpy(params, params_begin, params_len);  //must free
+
+    ptr = strstr(ptr, "PREFIX=");
+    prefix_begin = strchr(ptr, '"');
+    prefix_begin++;
+    ptr = strchr(prefix_begin,'"');
+    prefix_len = ptr - prefix_begin;
+    char *prefix = (char *) calloc(prefix_len + 1, sizeof(char));
+    assert(prefix);
+    memcpy(prefix, prefix_begin, prefix_len);  //must free
+
+    /* expand params */
+    int nparams = 0;
+    int *params_size = NULL;
+    const char **params_start = NULL;
+    if (strlen(params)) {
+        nparams = 1;
+        char * comma = strchr(params, ',');
+        while (comma) {
+            nparams++;
+            comma++;
+            comma = strchr(comma, ',');
+        }
+        params_start = (const char **) calloc(nparams, sizeof(char *));  //must free
+        params_size = (int *)  calloc(nparams, sizeof(int));     //must free
+        ptr = params;
+        for (int i = 0; i < nparams; i++) {
+            comma = strchr(ptr, ',');
+            params_start[i] = ptr;
+            if (comma) {
+                params_size[i] = (int) (comma - ptr);
+                ptr = comma;
+                ptr++;
+            } else {
+                params_size[i] = (int) (params + params_len - ptr);
+                break;
+            }
+        }
+    }
+
+    int count = 0;
+    ptr = strstr(media_playlist, "#EXTINF");
+    while (ptr) {
+        count++;
+        ptr = strstr(++ptr, "#EXTINF");
+    }
+
+    size_t old_size = strlen(media_playlist);
+    size_t new_size = old_size;
+    new_size += count * (base_uri_len + params_len);
+ 
+    char * new_playlist = (char *) calloc( new_size + 100, sizeof(char));
+    const char *old_pos = media_playlist;
+    char *new_pos = new_playlist;
+    ptr = old_pos;
+    ptr = strstr(old_pos, "#EXTINF:");
+    size_t len = ptr - old_pos;
+    /* copy header section before chunks */
+    memcpy(new_pos, old_pos, len);
+    old_pos += len;
+    new_pos += len;
+    int counter = 0;
+    while (ptr) {
+        counter++;
+        /* for each chunk */
+        const char *end = NULL;
+        char *start = strstr(ptr, prefix);
+        len = start - ptr;
+        /* copy first line of chunk entry */
+        memcpy(new_pos, old_pos, len);
+        old_pos += len;
+        new_pos += len;
+	
+	/* copy base uri  to replace prefix*/
+        memcpy(new_pos, base_uri, base_uri_len);
+        new_pos += base_uri_len;
+        old_pos += prefix_len;
+        ptr = strstr(old_pos, "#EXTINF:");
+
+        /* insert the PARAMS separators on the slices line  */
+	end = old_pos;
+        int last = nparams - 1;
+        for (int i = 0; i < nparams; i++) {
+	    if (i != last) {
+	      end = strchr(end, '/');
+	    } else {
+	      end = strstr(end, "#EXT");   /* the next line starts with either #EXTINF (usually) or #EXT-X-ENDLIST (at last chunk)*/
+	    }
+            *new_pos = '/';
+            new_pos++;
+            memcpy(new_pos, params_start[i], params_size[i]);
+            new_pos += params_size[i];
+            *new_pos = '/';
+            new_pos++;
+
+            len = end - old_pos;
+            end++;
+
+            memcpy (new_pos, old_pos, len);
+            new_pos += len;
+            old_pos += len;
+            if (i != last) {
+                old_pos++; /* last entry is not followed by "/" separator */
+            }
+        }
+    }
+    /* copy tail */
+     
+    len = media_playlist + strlen(media_playlist) - old_pos;
+    memcpy(new_pos, old_pos, len);
+    new_pos += len;
+    old_pos += len;
+
+    new_playlist[new_size] = '\0';
+
+    free (prefix);
+    free (base_uri);
+    free (params);
+    if (params_size) {
+        free (params_size);
+    }
+    if (params_start) {
+        free (params_start);
+    }  
+
+    return new_playlist;
+}
+
+char *adjust_master_playlist (char *fcup_response_data, int fcup_response_datalen, char *uri_prefix, char *uri_local_prefix) {
+
+    size_t uri_prefix_len = strlen(uri_prefix);
+    size_t uri_local_prefix_len = strlen(uri_local_prefix);
+    int counter = 0;
+    char *ptr = strstr(fcup_response_data, uri_prefix);
+    while (ptr != NULL) {
+        counter++;
+        ptr++;
+	ptr = strstr(ptr, uri_prefix);
+    }
+
+    size_t len = uri_local_prefix_len - uri_prefix_len;
+    len *= counter;
+    len += fcup_response_datalen;    
+    char *new_master = (char *) malloc(len + 1);
+    *(new_master + len) = '\0';
+    char *first = fcup_response_data;
+    char *new = new_master;
+    char *last = strstr(first, uri_prefix);
+    counter  = 0;
+    while (last != NULL) {
+        counter++;
+        len = last - first;
+        memcpy(new, first, len);
+	first = last + uri_prefix_len;
+        new += len;
+        memcpy(new, uri_local_prefix, uri_local_prefix_len);
+        new += uri_local_prefix_len;
+        last = strstr(last + uri_prefix_len, uri_prefix);
+	if (last  == NULL) {
+            len = fcup_response_data  + fcup_response_datalen  - first;
+            memcpy(new, first, len);
+            break;
+	}
+    }
+    return new_master;
+}
+
+int create_media_uri_table(const char *url_prefix, const char *master_playlist_data, int datalen,
+			    char ***media_uri_table, int *num_uri) {
+    char *ptr = strstr(master_playlist_data, url_prefix);
+    char ** table = NULL;
+    if (ptr == NULL) {
+        return -1;
+    }
+    int count = 0;
+    while (ptr != NULL) {
+        char *end = strstr(ptr, "m3u8");
+        if (end == NULL) {
+            return 1;
+        }
+        end += sizeof("m3u8");
+        count++;
+        ptr = strstr(end, url_prefix);
+    }
+    table  = (char **)  calloc(count, sizeof(char *));
+    if (!table) {
+      return -1;
+    }
+    for (int i = 0; i < count; i++) {
+        table[i] = NULL;
+    }
+    ptr = strstr(master_playlist_data, url_prefix);
+    count = 0;
+    while (ptr != NULL) {
+        char *end = strstr(ptr, "m3u8");
+	char *uri;
+        if (end == NULL) {
+            return 0;
+        }
+        end += sizeof("m3u8");
+        size_t len = end - ptr - 1;
+	uri  = (char *) calloc(len + 1, sizeof(char));
+	memcpy(uri , ptr, len);
+        table[count] = uri;
+        uri =  NULL;	
+	count ++;
+	ptr = strstr(end, url_prefix);
+    }
+    *num_uri = count;
+
+    *media_uri_table = table;
+    return 0;
+}
+			
 static void
 http_handler_action(raop_conn_t *conn, http_request_t *request, http_response_t *response,
                     char **response_data, int *response_datalen) {
@@ -351,23 +589,17 @@ http_handler_action(raop_conn_t *conn, http_request_t *request, http_response_t 
     bool data_is_plist = false;
     plist_t req_root_node = NULL;
     uint64_t uint_val;
-    void *media_data_store = NULL;
     int request_id = 0;
     int fcup_response_statuscode = 0;
     bool logger_debug = (logger_get_level(conn->raop->logger) >= LOGGER_DEBUG);
     
-    media_data_store = get_media_data_store(conn->raop);
-    if (!media_data_store) {
-        logger_log(conn->raop->logger, LOGGER_ERR, "media_data_store not found");
-        return;
-    }
 
     const char* session_id = http_request_get_header(request, "X-Apple-Session-ID");
     if (!session_id) {
         logger_log(conn->raop->logger, LOGGER_ERR, "Play request had no X-Apple-Session-ID");
         goto post_action_error;
     }    
-    const char *apple_session_id = get_apple_session_id(conn->airplay_video);
+    const char *apple_session_id = get_apple_session_id(conn->raop->airplay_video);
     if (strcmp(session_id, apple_session_id)){
         logger_log(conn->raop->logger, LOGGER_ERR, "X-Apple-Session-ID has changed:\n  was:\"%s\"\n  now:\"%s\"",
                    apple_session_id, session_id);
@@ -499,33 +731,63 @@ http_handler_action(raop_conn_t *conn, http_request_t *request, http_response_t 
     }
 
 
-    float duration = 0.0f, next;
-    int count = 0;
-    char *ptr = strstr(fcup_response_data, "#EXTINF:");
-    while (ptr != NULL) {
-        char *end;
-        ptr += strlen("#EXTINF:");
-        next = strtof(ptr, &end);
-        duration += next;
-        count++;
-        ptr = strstr(end, "#EXTINF:");
+    char *ptr = strstr(fcup_response_url, "/master.m3u8");
+    if (ptr) {
+      	/* this is a master playlist */
+        char *uri_prefix = get_uri_prefix(conn->raop->airplay_video);
+	char ** media_data_store = NULL;
+        int num_uri = 0;
+
+        char *uri_local_prefix = get_uri_local_prefix(conn->raop->airplay_video);
+        char *new_master = adjust_master_playlist (fcup_response_data, fcup_response_datalen,  uri_prefix, uri_local_prefix);
+        store_master_playlist(conn->raop->airplay_video, new_master);
+        create_media_uri_table(uri_prefix, fcup_response_data, fcup_response_datalen, &media_data_store, &num_uri);	
+	create_media_data_store(conn->raop->airplay_video, media_data_store, num_uri);  
+	num_uri =  get_num_media_uri(conn->raop->airplay_video);
+	set_next_media_uri_id(conn->raop->airplay_video, 0);
+    } else {
+        /* this is a media playlist */
+        assert(fcup_response_data);
+	char *playlist = (char *) calloc(fcup_response_datalen + 1, sizeof(char));
+	memcpy(playlist, fcup_response_data, fcup_response_datalen);
+        int uri_num = get_next_media_uri_id(conn->raop->airplay_video);
+	--uri_num;    // (next num is current num + 1)
+	store_media_data_playlist_by_num(conn->raop->airplay_video, playlist, uri_num);
+        float duration = 0.0f, next;
+        int count = 0;
+        ptr = strstr(fcup_response_data, "#EXTINF:");
+        while (ptr != NULL) {
+            char *end;
+            ptr += strlen("#EXTINF:");
+            next = strtof(ptr, &end);
+            duration += next;
+            count++;
+            ptr = strstr(end, "#EXTINF:");
+        }
+        if (count) {
+          printf("\n%s:\nplaylist has %5d chunks, total duration %9.3f secs\n", fcup_response_url, count, duration);
+        }
     }
-    if (count) {
-      printf("\n%s:\nplaylist has %5d chunks, total duration %9.3f secs\n", fcup_response_url, count, duration);
+
+    if (fcup_response_data) {
+        free (fcup_response_data);
+    }
+    if (fcup_response_url) {
+        free (fcup_response_url);
     }
 
-
-    
-    char *playback_location = process_media_data(media_data_store, fcup_response_url,
-                                                 fcup_response_data, fcup_response_datalen);
-
-    free (fcup_response_data);
-    free (fcup_response_url);
-    /* play, if location != NULL */
-    if (playback_location) {
-        conn->raop->callbacks.on_video_play(conn->raop->callbacks.cls, playback_location,
-                                            get_start_position_seconds(conn->airplay_video));
-        free (playback_location);
+    int num_uri = get_num_media_uri(conn->raop->airplay_video);
+    int uri_num = get_next_media_uri_id(conn->raop->airplay_video);
+    if (uri_num <  num_uri) {
+        fcup_request((void *) conn, get_media_uri_by_num(conn->raop->airplay_video, uri_num),
+                                                  apple_session_id,
+                                                  get_next_FCUP_RequestID(conn->raop->airplay_video));
+	set_next_media_uri_id(conn->raop->airplay_video, ++uri_num);
+    } else {
+        char * uri_local_prefix = get_uri_local_prefix(conn->raop->airplay_video);
+        conn->raop->callbacks.on_video_play(conn->raop->callbacks.cls,
+					    strcat(uri_local_prefix, "/master.m3u8"),
+                                            get_start_position_seconds(conn->raop->airplay_video));
     }
 
  finish:
@@ -551,23 +813,15 @@ http_handler_play(raop_conn_t *conn, http_request_t *request, http_response_t *r
     bool data_is_binary_plist = false;
     bool data_is_text = false;
     bool data_is_octet = false;
-    void *media_data_store = NULL;
-    bool ret;
-
+ 
     logger_log(conn->raop->logger, LOGGER_DEBUG, "http_handler_play");
-    media_data_store = get_media_data_store(conn->raop);
-    if (!media_data_store) {
-      logger_log(conn->raop->logger, LOGGER_ERR, "media_data_store not found, conn = %p", conn);
-
-        return;
-    }
 
     const char* session_id = http_request_get_header(request, "X-Apple-Session-ID");
     if (!session_id) {
         logger_log(conn->raop->logger, LOGGER_ERR, "Play request had no X-Apple-Session-ID");
         goto play_error;
     }
-    const char *apple_session_id = get_apple_session_id(conn->airplay_video);
+    const char *apple_session_id = get_apple_session_id(conn->raop->airplay_video);
     if (strcmp(session_id, apple_session_id)){
         logger_log(conn->raop->logger, LOGGER_ERR, "X-Apple-Session-ID has changed:\n  was:\"%s\"\n  now:\"%s\"",
                    apple_session_id, session_id);
@@ -609,7 +863,7 @@ http_handler_play(raop_conn_t *conn, http_request_t *request, http_response_t *r
         } else {
             char* playback_uuid = NULL;
             plist_get_string_val(req_uuid_node, &playback_uuid);
-	    set_playback_uuid(conn->airplay_video, playback_uuid);
+	    set_playback_uuid(conn->raop->airplay_video, playback_uuid);
             free (playback_uuid);
 	}
 
@@ -628,16 +882,14 @@ http_handler_play(raop_conn_t *conn, http_request_t *request, http_response_t *r
              plist_get_real_val(req_start_position_seconds_node, &start_position);
 	     start_position_seconds = (float) start_position;
         }
-	set_start_position_seconds(conn->airplay_video, (float) start_position_seconds);
+	set_start_position_seconds(conn->raop->airplay_video, (float) start_position_seconds);
     }
 
-    ret = request_media_data(media_data_store, playback_location, apple_session_id);
-
-    if (!ret) {
-        /* normal play, not HLS: assume location is valid (this will also be reached by safari-based HLS, when not valid) */
-        logger_log(conn->raop->logger, LOGGER_INFO, "Attempt to play normal (non-HLS) video, location = %s", playback_location);
-        conn->raop->callbacks.on_video_play(conn->raop->callbacks.cls, playback_location, start_position_seconds);
-    }
+    char *ptr = strstr(playback_location, "/master.m3u8");
+    int prefix_len =  (int) (ptr - playback_location);
+    set_uri_prefix(conn->raop->airplay_video, playback_location, prefix_len);
+    set_next_media_uri_id(conn->raop->airplay_video, 0);
+    fcup_request((void *) conn, playback_location, apple_session_id, get_next_FCUP_RequestID(conn->raop->airplay_video));
 
     if (playback_location) {
         free (playback_location);
@@ -662,19 +914,32 @@ http_handler_hls(raop_conn_t *conn,  http_request_t *request, http_response_t *r
     const char *method = http_request_get_method(request);
     assert (!strcmp(method, "GET"));
     const char *url = http_request_get_url(request);    
-    void *media_data_store = NULL;    	    
     const char* upgrade = http_request_get_header(request, "Upgrade");
     if (upgrade) {
       //don't accept Upgrade: h2c request ?
       return;
     }
-    media_data_store = get_media_data_store(conn->raop);
-    if (!media_data_store) {
-        logger_log(conn->raop->logger, LOGGER_ERR, "media_data_store not found");
-        return;
-    }
 
-    *response_data = query_media_data(media_data_store, url, response_datalen);
+    if (!strcmp(url, "/master.m3u8")){
+        char * master_playlist  = get_master_playlist(conn->raop->airplay_video);
+        size_t len = strlen(master_playlist);
+        char * data = (char *) malloc(len + 1);
+        memcpy(data, master_playlist, len);
+        data[len] = '\0';
+        *response_data = data;
+        *response_datalen = (int ) len;
+    } else {
+        char * media_playlist = NULL;
+        media_playlist =  get_media_playlist_by_uri(conn->raop->airplay_video, url);
+        if (media_playlist) {
+            char *data  = adjust_yt_condensed_playlist(media_playlist);
+            *response_data = data;
+            *response_datalen = strlen(data);
+        } else {
+            printf("%s not found\n", url);
+            assert(0);
+        }
+    } 
 
     http_response_add_header(response, "Access-Control-Allow-Headers", "Content-type");
     http_response_add_header(response, "Access-Control-Allow-Origin", "*");
@@ -686,4 +951,4 @@ http_handler_hls(raop_conn_t *conn,  http_request_t *request, http_response_t *r
     } else if (*response_datalen == 0) {
         http_response_init(response, "HTTP/1.1", 404, "Not Found");
     }
- }
+}

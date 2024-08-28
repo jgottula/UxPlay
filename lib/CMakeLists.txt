@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-include_directories( media_data_store playfair llhttp hlsparse )
+include_directories( playfair llhttp )
 
 message( STATUS "*** CFLAGS \"" ${CMAKE_C_FLAGS} "\" from build environment will be postpended to CMAKE_CFLAGS" )
 
@@ -63,15 +63,11 @@ if ( APPLE )
   target_link_libraries( airplay 
                          pthread
                          playfair
-                         llhttp
-			 MediaDataStore
-			 hlsparse )
+                         llhttp )
 elseif( WIN32 )
   target_link_libraries( airplay 
                          pthread
                          playfair
-			 MediaDataStore
-			 hlsparse
                          llhttp
                          wsock32
 			 iphlpapi
@@ -80,9 +76,7 @@ else()
   target_link_libraries( airplay PUBLIC
           pthread
           playfair
-          llhttp
-	  MediaDataStore
-	  hlsparse )
+          llhttp )
 endif()
 
 # libplist

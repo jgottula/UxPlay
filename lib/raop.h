@@ -96,8 +96,11 @@ raop_ntp_t *raop_ntp_init(logger_t *logger, raop_callbacks_t *callbacks, const c
                           int remote_addr_len, unsigned short timing_rport,
                           timing_protocol_t *time_protocol);
 
-airplay_video_t *airplay_video_service_init(void *conn, raop_t *raop, unsigned short port,
-                                            const char *session_id);
+int airplay_video_service_init(raop_t *raop, unsigned short port, const char *session_id);
+
+bool register_airplay_video(raop_t *raop, airplay_video_t *airplay_video);
+airplay_video_t *get_airplay_video(raop_t *raop);
+airplay_video_t *deregister_airplay_video(raop_t *raop);
   
 RAOP_API raop_t *raop_init(raop_callbacks_t *callbacks);
 RAOP_API int raop_init2(raop_t *raop, int nohold, const char *device_id, const char *keyfile);
@@ -114,8 +117,6 @@ RAOP_API int raop_is_running(raop_t *raop);
 RAOP_API void raop_stop(raop_t *raop);
 RAOP_API void raop_set_dnssd(raop_t *raop, dnssd_t *dnssd);
 RAOP_API void raop_destroy(raop_t *raop);
-RAOP_API void *get_media_data_store(raop_t *raop);
-RAOP_API void set_media_data_store(raop_t *raop, void *media_data_store);
 RAOP_API void raop_remove_known_connections(raop_t * raop);
 
 #ifdef __cplusplus

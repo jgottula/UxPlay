@@ -24,12 +24,30 @@
 #include "logger.h"
 
 typedef struct airplay_video_s airplay_video_t;
+typedef struct media_item_s media_item_t;
 
 const char *get_apple_session_id(airplay_video_t *airplay_video);
 void set_start_position_seconds(airplay_video_t *airplay_video, float start_position_seconds);
 float get_start_position_seconds(airplay_video_t *airplay_video);
 void set_playback_uuid(airplay_video_t *airplay_video, const char *playback_uuid);
-  
+void set_uri_prefix(airplay_video_t *airplay_video, char *uri_prefix, int uri_prefix_len);
+char *get_uri_prefix(airplay_video_t *airplay_video);
+char *get_uri_local_prefix(airplay_video_t *airplay_video);
+int get_next_FCUP_RequestID(airplay_video_t *airplay_video);    
+void set_next_media_uri_id(airplay_video_t *airplay_video, int id);
+int get_next_media_uri_id(airplay_video_t *airplay_video);
+char * get_media_playlist_by_uri(airplay_video_t *airplay_video, const char *uri);
+void store_master_playlist(airplay_video_t *airplay_video, char *master_playlist);
+char *get_master_playlist(airplay_video_t *airplay_video);
+int get_num_media_uri(airplay_video_t *airplay_video);
+void destroy_media_data_store(airplay_video_t *airplay_video);
+void create_media_data_store(airplay_video_t * airplay_video, char ** media_data_store, int num_uri);
+int store_media_data_playlist_by_num(airplay_video_t *airplay_video, char * media_playlist, int num);
+char *get_media_playlist_by_num(airplay_video_t *airplay_video, int num);
+char *get_media_uri_by_num(airplay_video_t *airplay_video, int num);
+int get_media_uri_num(airplay_video_t *airplay_video, char * uri);
+
+
 void airplay_video_service_destroy(airplay_video_t *airplay_video);
 
 //  C wrappers for c++ class MediaDataStore
