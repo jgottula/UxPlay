@@ -42,7 +42,7 @@ typedef struct playback_info_s {
   //char * uuid;
     uint32_t stallcount;
     double duration;
-    float position;
+    double position;
     float rate;
     bool ready_to_play;
     bool playback_buffer_empty;

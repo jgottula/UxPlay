@@ -62,7 +62,7 @@ unsigned int video_renderer_listen(void *loop);
 void video_renderer_destroy ();
 void video_renderer_size(float *width_source, float *height_source, float *width, float *height);
 bool waiting_for_x11_window();
-bool video_get_playback_info(double *duration, float *position, float *rate, int *buffering_level);
+bool video_get_playback_info(double *duration, double *position, float *rate);
 bool video_check_position();
 #ifdef __cplusplus
 }

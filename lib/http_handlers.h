@@ -199,23 +199,20 @@ http_handler_fpsetup2(raop_conn_t *conn, http_request_t *request, http_response_
 
 // called by http_handler_playback_info while preparing response to a GET /playback_info request from the client.
 
+typedef struct time_range_s {
+  double start;
+  double duration;
+} time_range_t;
+
 void time_range_to_plist(void *time_ranges, const int n_time_ranges,
 		         plist_t time_ranges_node) {
-    void *ptr = time_ranges;
-    double *val;
+    time_range_t *tr = (time_range_t *) time_ranges;
     for (int i = 0 ; i < n_time_ranges; i++) {
         plist_t time_range_node = plist_new_dict();
-
-        val = (double *) ptr;
-        plist_t duration_node = plist_new_real(*val);
+        plist_t duration_node = plist_new_real(tr[i].duration);
         plist_dict_set_item(time_range_node, "duration", duration_node);
-	ptr += sizeof(double);
-
-        val = (double *) ptr;
-        plist_t start_node = plist_new_real(*val);
+        plist_t start_node = plist_new_real(tr[i].start);
         plist_dict_set_item(time_range_node, "start", start_node);
-	ptr += sizeof(double);
-
         plist_array_append_item(time_ranges_node, time_range_node);
     }
 }
@@ -236,16 +233,16 @@ int create_playback_info_plist_xml(playback_info_t *playback_info, char **plist_
     plist_dict_set_item(res_root_node, "rate", rate_node);
 
     /* should these be int or bool? */
-    plist_t ready_to_play_node = plist_new_int(playback_info->ready_to_play);
+    plist_t ready_to_play_node = plist_new_uint(playback_info->ready_to_play);
     plist_dict_set_item(res_root_node, "readyToPlay", ready_to_play_node);
 
-    plist_t playback_buffer_empty_node = plist_new_int(playback_info->playback_buffer_empty);
+    plist_t playback_buffer_empty_node = plist_new_uint(playback_info->playback_buffer_empty);
     plist_dict_set_item(res_root_node, "playbackBufferEmpty", playback_buffer_empty_node);
 
-    plist_t playback_buffer_full_node = plist_new_int(playback_info->playback_buffer_full);
+    plist_t playback_buffer_full_node = plist_new_uint(playback_info->playback_buffer_full);
     plist_dict_set_item(res_root_node, "playbackBufferFull", playback_buffer_full_node);
 
-    plist_t playback_likely_to_keep_up_node = plist_new_int(playback_info->playback_likely_to_keep_up);
+    plist_t playback_likely_to_keep_up_node = plist_new_uint(playback_info->playback_likely_to_keep_up);
     plist_dict_set_item(res_root_node, "playbackLikelyToKeepUp", playback_likely_to_keep_up_node);
 
     plist_t loaded_time_ranges_node = plist_new_array();
@@ -280,17 +277,11 @@ http_handler_playback_info(raop_conn_t *conn, http_request_t *request, http_resp
     logger_log(conn->raop->logger, LOGGER_DEBUG, "http_handler_playback_info");
     //const char *session_id = http_request_get_header(request, "X-Apple-Session-ID");
     playback_info_t playback_info;
-    // use same single time range (duration, start = 0) for both loaded and seekable time ranges
-    double time_range[2];
-    playback_info.num_loaded_time_ranges = 1;
-    playback_info.loadedTimeRanges = (void *) time_range;
-    playback_info.num_seekable_time_ranges = 1;
-    playback_info.seekableTimeRanges = (void *) time_range;
 
     playback_info.stallcount = 0;
-    playback_info.ready_to_play = false; // ???;
-    playback_info.playback_buffer_empty = true;   // maybe  need to get this from playbin 
-    playback_info.playback_buffer_full = false;
+    playback_info.ready_to_play = true; // ???;
+    playback_info.playback_buffer_empty = false;   // maybe  need to get this from playbin 
+    playback_info.playback_buffer_full = true;
     playback_info.playback_likely_to_keep_up = true;
 
     conn->raop->callbacks.on_video_acquire_playback_info(conn->raop->callbacks.cls, &playback_info);
@@ -305,8 +296,18 @@ http_handler_playback_info(raop_conn_t *conn, http_request_t *request, http_resp
         logger_log(conn->raop->logger, LOGGER_DEBUG, "playback_info not available");
         return;
     }      
-    time_range[0] = playback_info.duration;
-    time_range[1] = 0;
+
+    playback_info.num_loaded_time_ranges = 1; 
+    time_range_t time_ranges_loaded[1];
+    time_ranges_loaded[0].start = playback_info.position;
+    time_ranges_loaded[0].duration = playback_info.duration - playback_info.position;
+    playback_info.loadedTimeRanges = (void *) &time_ranges_loaded;
+
+    playback_info.num_seekable_time_ranges = 1;
+    time_range_t time_ranges_seekable[1];
+    time_ranges_seekable[0].start = 0.0;
+    time_ranges_seekable[0].duration = playback_info.position;
+    playback_info.seekableTimeRanges = (void *) &time_ranges_seekable;
 
     *response_datalen =  create_playback_info_plist_xml(&playback_info, response_data);
     http_response_add_header(response, "Content-Type", "text/x-apple-plist+xml");

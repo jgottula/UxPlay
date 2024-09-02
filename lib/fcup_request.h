@@ -31,22 +31,22 @@ char *create_fcup_request(const char *url, int request_id, const char *client_se
     
     plist_t req_root_node = plist_new_dict();
     
-    plist_t session_id_node = plist_new_int((int64_t) sessionID);   
+    plist_t session_id_node = plist_new_uint((int64_t) sessionID);   
     plist_dict_set_item(req_root_node, "sessionID", session_id_node);
     plist_t type_node = plist_new_string("unhandledURLRequest");
     plist_dict_set_item(req_root_node, "type", type_node);
 
     plist_t fcup_request_node = plist_new_dict();
 
-    plist_t client_info_node = plist_new_int(FCUP_Response_ClientInfo);
+    plist_t client_info_node = plist_new_uint(FCUP_Response_ClientInfo);
     plist_dict_set_item(fcup_request_node, "FCUP_Response_ClientInfo", client_info_node);
-    plist_t client_ref_node = plist_new_int((int64_t) FCUP_Response_ClientRef);
+    plist_t client_ref_node = plist_new_uint((int64_t) FCUP_Response_ClientRef);
     plist_dict_set_item(fcup_request_node, "FCUP_Response_ClientRef", client_ref_node);
-    plist_t request_id_node = plist_new_int((int64_t) request_id);
+    plist_t request_id_node = plist_new_uint((int64_t) request_id);
     plist_dict_set_item(fcup_request_node, "FCUP_Response_RequestID", request_id_node);
     plist_t url_node = plist_new_string(url);
     plist_dict_set_item(fcup_request_node, "FCUP_Response_URL", url_node);
-    plist_t session_id1_node = plist_new_int((int64_t) sessionID);    
+    plist_t session_id1_node = plist_new_uint((int64_t) sessionID);    
     plist_dict_set_item(fcup_request_node, "sessionID", session_id1_node);
 				    
     plist_t fcup_response_header_node = plist_new_dict();
