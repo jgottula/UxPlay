@@ -47,10 +47,12 @@ static bool use_x11 = false;
 #endif
 static bool playbin3;
 
+
 struct video_renderer_s {
     GstElement *appsrc, *pipeline;
     GstBus *bus;
   // gboolean playing, terminate, seek_enabled, seek_done;
+    gboolean terminate;
     gint64 duration;
     gint buffering_level;
 #ifdef  X_DISPLAY_FIX
@@ -211,7 +213,7 @@ void  video_renderer_init(logger_t *render_logger, const char *server_name, vide
     g_assert(renderer);
     renderer->duration = GST_CLOCK_TIME_NONE;
     renderer->buffering_level = 0;
-    //renderer->terminate = FALSE;
+    renderer->terminate = FALSE;
 
     if (!uri) {
         hls_video  = false;
@@ -449,7 +451,7 @@ void video_renderer_destroy() {
 }
 
 gboolean gstreamer_pipeline_bus_callback(GstBus *bus, GstMessage *message, gpointer loop) {
-    if (true || logger_debug) {
+    if (logger_debug) {
         if (!hls_video) {
 	    g_print("GStreamer bus message %s %s\n", GST_MESSAGE_SRC_NAME(message), GST_MESSAGE_TYPE_NAME(message));
         } else {
@@ -504,21 +506,27 @@ gboolean gstreamer_pipeline_bus_callback(GstBus *bus, GstMessage *message, gpoin
 	if (renderer->appsrc) {
             gst_app_src_end_of_stream (GST_APP_SRC(renderer->appsrc));
 	}
-
         gst_bus_set_flushing(renderer->bus, TRUE);
         gst_element_set_state (renderer->pipeline, GST_STATE_READY);
+        renderer->terminate = TRUE;
         g_main_loop_quit( (GMainLoop *) loop);
         break;
     }
     case GST_MESSAGE_EOS:
       /* end-of-stream */
         logger_log(logger, LOGGER_INFO, "GStreamer: End-Of-Stream");
-        break;
     //case GST_MESSAGE_DURATION:
       	//g_print("bus message (hls/playbin): %s\n", GST_MESSAGE_TYPE_NAME(message));
         /* The duration has changed, mark the current one as invalid */
         //renderer->duration = GST_CLOCK_TIME_NONE;
         //break;
+	if (hls_video) {
+            gst_bus_set_flushing(renderer->bus, TRUE);
+            gst_element_set_state (renderer->pipeline, GST_STATE_READY);
+	    renderer->terminate = TRUE;
+            g_main_loop_quit( (GMainLoop *) loop);
+        }
+        break;
     case GST_MESSAGE_STATE_CHANGED:
         if (auto_videosink) {
             char *sink = strstr(GST_MESSAGE_SRC_NAME(message), "-actual-sink-");
@@ -581,22 +589,23 @@ unsigned int video_renderer_listen(void *loop) {
                                             gstreamer_pipeline_bus_callback, (gpointer) loop);    
 }
 
-bool video_check_position() {
-    if (renderer && renderer->duration > 0) {
-        gint64 pos = 0;
-        gst_element_query_position (renderer->pipeline, GST_FORMAT_TIME, &pos);
-        /* use pos > renderer->duration > 0 as a test to see if video has finished
-        * video_check_position  is called repeatedly  while HLS video is playing */
-        if (pos > renderer->duration) {
-            video_renderer_pause();
-            gst_bus_set_flushing(renderer->bus, TRUE);
-            g_print("media streaming is complete (duration %" GST_TIME_FORMAT "): terminating HLS session\n",
-                    GST_TIME_ARGS(renderer->duration));
-            return false;
-        }
-    }
-    return true;
-}
+//bool video_check_position() {
+// if (renderer && renderer->terminate) {
+//return false;
+//nt64 pos = 0;
+//st_element_query_position (renderer->pipeline, GST_FORMAT_TIME, &pos);
+// /* use pos > renderer->duration > 0 as a test to see if video has finished
+//     * video_check_position  is called repeatedly  while HLS video is playing */
+// if (pos > renderer->duration) {
+//    video_renderer_pause();
+//    gst_bus_set_flushing(renderer->bus, TRUE);
+//    g_print("media streaming is complete (duration %" GST_TIME_FORMAT "): terminating HLS session\n",
+//           GST_TIME_ARGS(renderer->duration));
+//    return false;
+//}
+// }
+// return true;
+//}
   
 bool video_get_playback_info(double *duration, double *position, float *rate) {
     gint64 pos = 0;

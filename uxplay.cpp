@@ -371,24 +371,26 @@ static gboolean x11_window_callback(gpointer loop) {
     return FALSE;
 }
 
-static gboolean hls_position_callback(gpointer loop) {
-    bool running;
-    if (url.empty()) {
-        g_source_remove(gst_hls_position_id);
-        gst_hls_position_id = 0;
-        return FALSE;
-    }
-    if (video_check_position()) {
-      return TRUE;
-    }
-    url.erase();
-    reset_loop = true;
-    remote_clock_offset = 0;
-    relaunch_video = true;
-    g_source_remove(gst_hls_position_id);
-    gst_hls_position_id = 0;
-    return FALSE;
-}
+
+
+//static gboolean hls_position_callback(gpointer loop) {
+//    bool running;
+//   if (url.empty()) {
+//        g_source_remove(gst_hls_position_id);
+//       gst_hls_position_id = 0;
+//       return FALSE;
+//   }
+//   if (video_check_position()) {
+//     return TRUE;
+//   }
+//    url.erase();
+//    reset_loop = true;
+//   remote_clock_offset = 0;
+//    relaunch_video = true;
+//   g_source_remove(gst_hls_position_id);
+//    gst_hls_position_id = 0;
+//    return FALSE;
+//}
 
 
 static gboolean  sigint_callback(gpointer loop) {
@@ -433,7 +435,7 @@ static void main_loop()  {
         relaunch_video = true;
         gst_bus_watch_id = (guint) video_renderer_listen((void *)loop);
         gst_x11_window_id = g_timeout_add(100, (GSourceFunc) x11_window_callback, (gpointer) loop);
-	gst_hls_position_id = g_timeout_add(500, (GSourceFunc) hls_position_callback, (gpointer) loop);
+	//gst_hls_position_id = g_timeout_add(500, (GSourceFunc) hls_position_callback, (gpointer) loop);
     }
     guint reset_watch_id = g_timeout_add(100, (GSourceFunc) reset_callback, (gpointer) loop);
     guint sigterm_watch_id = g_unix_signal_add(SIGTERM, (GSourceFunc) sigterm_callback, (gpointer) loop);
@@ -441,7 +443,7 @@ static void main_loop()  {
     g_main_loop_run(loop);
 
     if (gst_x11_window_id > 0) g_source_remove(gst_x11_window_id);
-    if (gst_hls_position_id > 0) g_source_remove(gst_hls_position_id);
+    //if (gst_hls_position_id > 0) g_source_remove(gst_hls_position_id);
     if (gst_bus_watch_id > 0) g_source_remove(gst_bus_watch_id);
     if (sigint_watch_id > 0) g_source_remove(sigint_watch_id);
     if (sigterm_watch_id > 0) g_source_remove(sigterm_watch_id);
