@@ -2277,7 +2277,9 @@ int main (int argc, char *argv[]) {
 	  //video_renderer_stop();
             video_renderer_destroy();
             if (!preserve_connections) {
-	        raop_remove_known_connections(raop);
+                raop_destroy_airplay_video(raop);
+                url.erase();
+                raop_remove_known_connections(raop);
             }
 	    preserve_connections = false;
 	    const char *uri = (url.empty() ? NULL : url.c_str());

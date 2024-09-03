@@ -608,6 +608,7 @@ raop_init2(raop_t *raop, int nohold, const char *device_id, const char *keyfile)
 void
 raop_destroy(raop_t *raop) {
     if (raop) {
+        raop_destroy_airplay_video(raop);
         raop_stop(raop);
         pairing_destroy(raop->pairing);
         httpd_destroy(raop->httpd);
@@ -745,16 +746,20 @@ airplay_video_t *deregister_airplay_video(raop_t *raop) {
 }
 
 bool register_airplay_video(raop_t *raop, airplay_video_t *airplay_video) {
-  if (raop->airplay_video) {
-    return false;
-  }
-  raop->airplay_video = airplay_video;
-  return true;
+    if (raop->airplay_video) {
+        return false;
+    }
+    raop->airplay_video = airplay_video;
+    return true;
 }
-
 
 airplay_video_t * get_airplay_video(raop_t *raop) {
-  return raop->airplay_video;
+    return raop->airplay_video;
 }
 
-  
+void raop_destroy_airplay_video(raop_t *raop) {
+    if (raop->airplay_video) {
+        airplay_video_service_destroy(raop->airplay_video);
+        raop->airplay_video = NULL;
+    }
+}

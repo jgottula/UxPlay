@@ -187,9 +187,9 @@ void  video_renderer_init(logger_t *render_logger, const char *server_name, vide
     GError *error = NULL;
     GstCaps *caps = NULL;
 #ifdef GST_124
-    playbin3 = false;
+    playbin3 = true;
 #else
-    playbin3 = false;
+    playbin3 = true;
 #endif
     
     GstClock *clock = gst_system_clock_obtain();
@@ -506,7 +506,7 @@ gboolean gstreamer_pipeline_bus_callback(GstBus *bus, GstMessage *message, gpoin
 	}
 
         gst_bus_set_flushing(renderer->bus, TRUE);
-        gst_element_set_state (renderer->pipeline, GST_STATE_NULL);
+        gst_element_set_state (renderer->pipeline, GST_STATE_READY);
         g_main_loop_quit( (GMainLoop *) loop);
         break;
     }
