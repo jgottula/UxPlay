@@ -41,6 +41,7 @@
 #include <unordered_map>
 #include <winsock2.h>
 #include <iphlpapi.h>
+#include <ws2tcpip.h>
 #else
 #include <glib-unix.h>
 #include <sys/utsname.h>
@@ -141,6 +142,10 @@ static std::vector <std::string> registered_keys;
 static double db_low = -30.0;
 static double db_high = 0.0;
 static bool taper_volume = false;
+static std::string ip4 = "";
+static std::string ip6_local = "";
+static std::string ip6_global = "";
+
 
 /* logging */
 
@@ -478,6 +483,26 @@ static std::string find_mac () {
                 || address->OperStatus != 1) {                      /* interface is up */
                 continue;
             }
+            PIP_ADAPTER_UNICAST_ADDRESS ua;
+            for (ua = address->FirstUnicastAddress; ua != NULL; ua = ua->Next) {
+                if (ua->SuffixOrigin == IpSuffixOriginRandom) {
+                    continue;    //reject temporary ip addresses;
+                }
+                char  buf[64];   /* big enough for ipv6 address (including zone , embedded ipv4) */
+                int family = ua->Address.lpSockaddr->sa_family;
+                getnameinfo(ua->Address.lpSockaddr, ua->Address.iSockaddrLength, buf, sizeof(buf), NULL, 0, NI_NUMERICHOST);
+                if (family == AF_INET) {
+                    ip4.erase();
+                    ip4 = buf;
+                } else if (family == AF_INET6) {// && !strncmp(buf + 27, "ff:fe", 5)) {
+                    if (strncmp(buf, "FE80::", 6) && strncmp(buf, "fe80::", 6)) { //not link-local                         ip6_global.erase();
+                        ip6_global = buf;
+                    } else {
+                        ip6_local.erase();
+                        ip6_local = buf;
+                    }
+                }
+            }	    
             mac.erase();
             for (int i = 0; i < 6; i++) {
                 snprintf(str, sizeof(str), "%02x", int(address->PhysicalAddress[i]));
@@ -2138,9 +2163,12 @@ int main (int argc, char *argv[]) {
         LOGI("using network ports UDP %d %d %d TCP %d %d %d", udp[0], udp[1], udp[2], tcp[0], tcp[1], tcp[2]);
     }
 
+    /* call find_mac() always, to get ip4, ip6 */
+    std::string mac_temp = find_mac();
+    LOGD("ipv4 = %s; ipv6 = %s , %s \n", ip4.c_str(), ip6_global.c_str(), ip6_local.c_str());
     if (!use_random_hw_addr) {
         if (strlen(mac_address.c_str()) == 0) {
-            mac_address = find_mac();
+            mac_address = mac_temp;;
             LOGI("using system MAC address %s",mac_address.c_str());	    
         } else {
             LOGI("using user-set MAC address %s",mac_address.c_str());
