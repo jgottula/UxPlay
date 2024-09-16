@@ -390,12 +390,29 @@ static guint g_unix_signal_add(gint signum, GSourceFunc handler, gpointer user_d
 }
 #endif
 
+#if 0
+static gboolean video_pipeline_setup(gpointer loop) {
+  /* called when the video data needed to set up the GStreamer video pipeline has arrived */
+    if (!use_video) {
+        return FALSE;
+    }
+    if (!raop_video_data_available (raop) {
+        return TRUE;
+    } else {
+        video_renderer_init(render_logger, server_name.c_str(), videoflip, video_parser.c_str(),
+                            video_decoder.c_str(), video_converter.c_str(), videosink.c_str(), fullscreen, video_sync);
+        video_renderer_start();
+    }  
+}
+#endif
+  
 static void main_loop()  {
     guint gst_bus_watch_id = 0;
     GMainLoop *loop = g_main_loop_new(NULL,FALSE);
     relaunch_video = false;
     if (use_video) {
         relaunch_video = true;
+	//video_pipeline_setup_id = g_timeout_add(100, GSourceFunc) video_pipeline_setup, (gpointer) loop);
         gst_bus_watch_id = (guint) video_renderer_listen((void *)loop);
     }
     guint reset_watch_id = g_timeout_add(100, (GSourceFunc) reset_callback, (gpointer) loop);
@@ -1383,6 +1400,7 @@ static int start_dnssd(std::vector<char> hw_addr, std::string name) {
         dnssd_set_airplay_features(dnssd, i, 0);
     }
 
+    dnssd_set_airplay_features(dnssd, 42, 1);
     /*  bits 32-63 are  not used here: see  https://emanualcozzi.net/docs/airplay2/features 
     dnssd_set_airplay_features(dnssd, 32, 0); // isCarPlay when ON,; Supports InitialVolume when OFF
     dnssd_set_airplay_features(dnssd, 33, 0); // Supports Air Play Video Play Queue
@@ -1572,7 +1590,7 @@ extern "C" void audio_process (void *cls, raop_ntp_t *ntp, audio_decode_struct *
     }
 }
 
-extern "C" void video_process (void *cls, raop_ntp_t *ntp, h264_decode_struct *data) {
+extern "C" void video_process (void *cls, raop_ntp_t *ntp, video_decode_struct *data) {
     if (dump_video) {
         dump_video_to_file(data->data, data->data_len);
     }
@@ -1690,9 +1708,19 @@ extern "C" void audio_get_format (void *cls, unsigned char *ct, unsigned short *
     }
 }
 
-extern "C" void video_report_size(void *cls, float *width_source, float *height_source, float *width, float *height) {
+ extern "C" void video_set_params(void *cls, bool is_h265, unsigned short *video_size, int nparams) {
     if (use_video) {
-        video_renderer_size(width_source, height_source, width, height);
+        printf("video type %s: ", is_h265 ? "h265" : "h264");
+        for (int i = 0; i < nparams; i++) {
+            printf("%u ", video_size[i]);
+        }
+        printf("\n");
+        g_assert(nparams == NUM_VIDEO_PARAMS);
+        if (is_h265) {
+            set_video_data(VIDEO_FORMAT_H265, video_size);
+        } else {
+      	    set_video_data(VIDEO_FORMAT_H264, video_size);
+        }
     }
 }
 
@@ -1821,7 +1849,7 @@ static int start_raop_server (unsigned short display[5], unsigned short tcp[3], 
     raop_cbs.video_resume = video_resume;
     raop_cbs.audio_set_volume = audio_set_volume;
     raop_cbs.audio_get_format = audio_get_format;
-    raop_cbs.video_report_size = video_report_size;
+    raop_cbs.video_set_params = video_set_params;
     raop_cbs.audio_set_metadata = audio_set_metadata;
     raop_cbs.audio_set_coverart = audio_set_coverart;
     raop_cbs.audio_set_progress = audio_set_progress;
@@ -1831,7 +1859,6 @@ static int start_raop_server (unsigned short display[5], unsigned short tcp[3], 
     raop_cbs.check_register = check_register;
     raop_cbs.export_dacp = export_dacp;
     raop_cbs.video_reset = video_reset;
-
     raop = raop_init(&raop_cbs);
     if (raop == NULL) {
         LOGE("Error initializing raop!");
@@ -2128,10 +2155,11 @@ int main (int argc, char *argv[]) {
         LOGI("audio_disabled");
     }
 
-    if (use_video) {
-        video_renderer_init(render_logger, server_name.c_str(), videoflip, video_parser.c_str(),
-                            video_decoder.c_str(), video_converter.c_str(), videosink.c_str(), fullscreen, video_sync);
-        video_renderer_start();
+    // moved to video_pipeline_setup()
+        if (use_video) {
+            video_renderer_init(render_logger, server_name.c_str(), videoflip, video_parser.c_str(),
+                                video_decoder.c_str(), video_converter.c_str(), videosink.c_str(), fullscreen, video_sync);
+            video_renderer_start();
     }
 
     if (udp[0]) {
@@ -2173,7 +2201,7 @@ int main (int argc, char *argv[]) {
     }
     reconnect:
     compression_type = 0;
-    close_window = new_window_closing_behavior; 
+    close_window = new_window_closing_behavior;
     main_loop();
     if (relaunch_video || reset_loop) {
         if(reset_loop) {
@@ -2184,6 +2212,7 @@ int main (int argc, char *argv[]) {
         if (use_audio) audio_renderer_stop();
         if (use_video && close_window) {
             video_renderer_destroy();
+	    // moved to video_pipeline_setup()
             video_renderer_init(render_logger, server_name.c_str(), videoflip, video_parser.c_str(),
                                 video_decoder.c_str(), video_converter.c_str(), videosink.c_str(), fullscreen,
                                 video_sync);

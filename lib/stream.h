@@ -27,7 +27,7 @@ typedef struct {
     int data_len;
     uint64_t ntp_time_local;
     uint64_t ntp_time_remote;
-} h264_decode_struct;
+} video_decode_struct;
 
 typedef struct {
     unsigned char *data;

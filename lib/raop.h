@@ -40,10 +40,10 @@ struct raop_callbacks_s {
     void* cls;
 
     void  (*audio_process)(void *cls, raop_ntp_t *ntp, audio_decode_struct *data);
-    void  (*video_process)(void *cls, raop_ntp_t *ntp, h264_decode_struct *data);
+    void  (*video_process)(void *cls, raop_ntp_t *ntp, video_decode_struct *data);
     void  (*video_pause)(void *cls);
     void  (*video_resume)(void *cls);
-
+    void  (*video_set_params)(void *cls, bool is_h264, unsigned short *video_size, int nparams);
     /* Optional but recommended callback functions */
     void  (*conn_init)(void *cls);
     void  (*conn_destroy)(void *cls);
@@ -57,7 +57,6 @@ struct raop_callbacks_s {
     void  (*audio_remote_control_id)(void *cls, const char *dacp_id, const char *active_remote_header);
     void  (*audio_set_progress)(void *cls, unsigned int start, unsigned int curr, unsigned int end);
     void  (*audio_get_format)(void *cls, unsigned char *ct, unsigned short *spf, bool *usingScreen, bool *isMedia, uint64_t *audioFormat);
-    void  (*video_report_size)(void *cls, float *width_source, float *height_source, float *width, float *height);
     void  (*report_client_request) (void *cls, char *deviceid, char *model, char *name, bool *admit);
     void  (*display_pin) (void *cls, char * pin);
     void  (*register_client) (void *cls, const char *device_id, const char *pk_str, const char *name);

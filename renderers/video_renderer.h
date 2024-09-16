@@ -27,6 +27,8 @@
 #ifndef VIDEO_RENDERER_H
 #define VIDEO_RENDERER_H
 
+#define NUM_VIDEO_PARAMS 6
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -42,10 +44,19 @@ typedef enum videoflip_e {
     RIGHT,
     INVERT,
     VFLIP,
-    HFLIP,
+    HFLIP
 } videoflip_t;
 
+typedef enum video_format_e {
+  VIDEO_FORMAT_UNKNOWN,
+  VIDEO_FORMAT_H264,
+  VIDEO_FORMAT_H265,
+  VIDEO_FORMAT_HLS
+} video_format_t;
+
 typedef struct video_renderer_s video_renderer_t;
+  
+void set_video_data (video_format_t video_format, unsigned short video_data[6]);
 
 void video_renderer_init (logger_t *logger, const char *server_name, videoflip_t videoflip[2], const char *parser,
                           const char *decoder, const char *converter, const char *videosink, const bool fullscreen,

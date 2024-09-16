@@ -40,6 +40,9 @@ static unsigned short width, height, width_source, height_source;  /* not curren
 static bool first_packet = false;
 static bool sync = false;
 static bool auto_videosink;
+static unsigned short video_data[NUM_VIDEO_PARAMS] = { 0 };
+static video_format_t video_format = VIDEO_FORMAT_UNKNOWN;
+
 
 struct video_renderer_s {
     GstElement *appsrc, *pipeline;
@@ -50,6 +53,17 @@ struct video_renderer_s {
     bool use_x11;
 #endif
 };
+
+void set_video_data (video_format_t video_format_announced, unsigned short video_data_announced[NUM_VIDEO_PARAMS]) {
+    video_format = video_format_announced;
+    if (video_data_announced) {
+        memcpy(video_data, video_data_announced, NUM_VIDEO_PARAMS * sizeof(unsigned short));
+    } else {
+        for (int i = 0; i < NUM_VIDEO_PARAMS; i++) {
+            video_data[i] = 0;
+        }
+    }
+}
 
 static void append_videoflip (GString *launch, const videoflip_t *flip, const videoflip_t *rot) {
     /* videoflip image transform */
